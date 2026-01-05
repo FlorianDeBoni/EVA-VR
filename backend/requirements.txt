@@ -1,0 +1,7 @@
+django
+django-cors-headers
+gunicorn
+google-genai
+langchain
+langchain-openai
+python-decouple
