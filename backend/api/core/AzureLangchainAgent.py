@@ -1,6 +1,7 @@
 from typing import List, Dict, Generator, Any
 from openai import AzureOpenAI
 from decouple import config
+import time
 
 # -----------------------------
 # Azure OpenAI configuration
@@ -44,6 +45,8 @@ def send_chat_completion_stream(
 
     for chunk in response:
         if chunk.choices and chunk.choices[0].delta.content:
-            yield chunk.choices[0].delta.content
+            for character in chunk.choices[0].delta.content:
+                yield character
+                time.sleep(0.001)
 
     yield "[DONE]"

@@ -1,0 +1,16 @@
+server {
+  listen 80;
+  server_name _;
+
+  # Redirect ONLY the exact root
+  location = / {
+    return 302 ${VITE_BASE_URL}/;
+  }
+
+  # Serve the Vite app
+  location ${VITE_BASE_URL}/ {
+    alias /usr/share/nginx/html/;
+    index index.html;
+    try_files $uri $uri/ ${VITE_BASE_URL}/index.html;
+  }
+}
