@@ -12,8 +12,6 @@ gemini_client = genai.Client(
     api_key=config("GEMINI_KEY")
 )
 
-import os
-
 # -----------------------------
 # Tool: image generation
 # -----------------------------
@@ -21,22 +19,24 @@ def generate_image_with_gemini(
     prompt: str,
     model: str = "gemini-2.5-flash-image",
     output_path: str = "generated_image.png",
-) -> Optional[str]:
-    """
-    Generates an image using Gemini and saves it to disk.
-    Returns the file path if successful.
-    """
+) -> str:
+    print("Gemini Tool: generating image...")
 
-    print('Gemini Tool: generating image...')
+    # --- Normalize the output path ---
+    # Case 1: output_path is "." or "" -> save in CWD with default file name
+    if not output_path or output_path in (".", "./"):
+        output_path = "generated_image.png"
 
-    # ✅ Ensure output_path is a file, not a directory
+    # Case 2: output_path is a directory -> append a filename
     if os.path.isdir(output_path):
-        # If output_path is a directory, append default filename
         output_path = os.path.join(output_path, "generated_image.png")
 
-    # ✅ Ensure parent directory exists
-    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    # Ensure folder exists
+    directory = os.path.dirname(output_path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
 
+    # --- Generate image ---
     response = gemini_client.models.generate_content(
         model=model,
         contents=[prompt],
@@ -45,9 +45,8 @@ def generate_image_with_gemini(
     for part in response.parts:
         if part.inline_data is not None:
             image = part.as_image()
-            image.save(output_path)  # Now safe
+            image.save(output_path)
             print(f"Image saved to {output_path}")
             return output_path
 
-    print("No image generated.")
-    return None
+    raise RuntimeError("Gemini did not return an image")

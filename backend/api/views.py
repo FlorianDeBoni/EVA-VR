@@ -6,7 +6,7 @@ from .core.azureLangchainAgent import maybe_generate_image, send_chat_completion
 def check_status(request):
     history = [
         {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Using the tool generate a picture of a cat"},
+        {"role": "user", "content": "Tell a short story and generate an image using the tool"},
     ]
     
     print("Start view")
