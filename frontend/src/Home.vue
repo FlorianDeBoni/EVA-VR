@@ -2,6 +2,12 @@
   <div class="chat-app">
     <div class="chat-content">
       <ChatHistory>
+        <!-- Welcome message when no messages -->
+        <div v-if="messages.length === 0" class="welcome-message">
+          Welcome to EVA-VR chatBot, please start a conversation...
+        </div>
+
+        <!-- Message bubbles -->
         <MessageBubble
           v-for="(msg, index) in messages"
           :key="index"
@@ -30,18 +36,20 @@ interface Message {
   images?: { id: string, b64: string }[];
 }
 
-const messages = ref<Message[]>([
-  {
-    text: 'Hello! How can I help you today?',
-    isUser: false,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  }
-]);
+const messages = ref<Message[]>([]);
 
 const isStreaming = ref(false);
-let eventSource: EventSource | null = null;
+let abortController: AbortController | null = null;
 
-const handleSend = (messageText: string) => {
+// Convert messages to history format for the backend
+const getConversationHistory = () => {
+  return messages.value.map(msg => ({
+    role: msg.isUser ? 'user' : 'assistant',
+    content: msg.text
+  }));
+};
+
+const handleSend = async (messageText: string) => {
   // Add user message
   messages.value.push({
     text: messageText,
@@ -60,45 +68,92 @@ const handleSend = (messageText: string) => {
 
   isStreaming.value = true;
 
-  // Close any existing connection
-  if (eventSource) eventSource.close();
+  // Cancel any existing request
+  if (abortController) abortController.abort();
+  abortController = new AbortController();
 
-  // Start SSE connection
-  eventSource = new EventSource(`${import.meta.env.VITE_BACKEND_URL}/api/check`);
+  try {
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: messageText,
+        history: getConversationHistory()
+      }),
+      signal: abortController.signal,
+    });
 
-  eventSource.onmessage = (event) => {
-    if (event.data === '[DONE]') {
-      eventSource?.close();
-      eventSource = null;
-      isStreaming.value = false;
-      return;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = JSON.parse(event.data);
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
 
-    if (data.type === 'image') {
-      messages.value[botMessageIndex].images?.push({ 
-        id: data.id, 
-        b64: data.b64 
-      });
-      return;
+    if (!reader) {
+      throw new Error('No response body');
     }
 
-    if (data.type === 'text' && data.delta !== "[DONE]") {
-      messages.value[botMessageIndex].text += data.delta;
-      return;
-    }
-  };
+    let buffer = '';
 
-  eventSource.onerror = (err) => {
-    console.error('SSE error', err);
-    eventSource?.close();
-    eventSource = null;
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      
+      // Keep the last incomplete line in the buffer
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        let data = line;
+        
+        // Remove 'data: ' prefix if present
+        if (line.startsWith('data: ')) {
+          data = line.substring(6);
+        }
+
+        if (data === '[DONE]') {
+          isStreaming.value = false;
+          abortController = null;
+          continue;
+        }
+
+        try {
+          const parsed = JSON.parse(data);
+
+          if (parsed.type === 'image') {
+            messages.value[botMessageIndex].images?.push({
+              id: parsed.id,
+              b64: parsed.b64
+            });
+          } else if (parsed.type === 'text' && parsed.delta && parsed.delta !== '[DONE]') {
+            messages.value[botMessageIndex].text += parsed.delta;
+          }
+        } catch (e) {
+          console.error('Error parsing SSE data:', e, 'Line:', data);
+        }
+      }
+    }
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.log('Request was aborted');
+    } else {
+      console.error('Fetch error:', error);
+      messages.value[botMessageIndex].text = 'Sorry, there was an error processing your request.';
+    }
+  } finally {
     isStreaming.value = false;
-    
-    // Optionally add an error message
-    messages.value[botMessageIndex].text = 'Sorry, there was an error processing your request.';
-  };
+    abortController = null;
+  }
 };
 </script>
 
@@ -114,5 +169,16 @@ const handleSend = (messageText: string) => {
 .chat-content {
   overflow: hidden;
   position: relative;
+}
+
+.welcome-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #9ca3af;
+  font-size: 16px;
+  text-align: center;
+  padding: 20px;
 }
 </style>

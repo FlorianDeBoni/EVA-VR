@@ -37,27 +37,33 @@ export default defineComponent({
 
 <style scoped>
 .chat-history {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   display: flex;
   flex-direction: column;
-  pointer-events: none;
 }
 
 .messages-container {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  padding-bottom: 120px; /* Space for the input - adjust if needed */
   display: flex;
   flex-direction: column;
   gap: 16px;
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 #f3f4f6;
-  pointer-events: auto;
+  
+  /* This ensures the welcome message can be centered */
+  justify-content: flex-start;
+}
+
+/* When empty (only welcome message), center it */
+.messages-container:has(.welcome-message) {
+  justify-content: center;
+  align-items: center;
 }
 
 /* Webkit browsers (Chrome, Safari, Edge) */

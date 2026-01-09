@@ -1,18 +1,47 @@
 from django.http import StreamingHttpResponse
-from django.views.decorators.http import require_GET
 from .core.azureLangchainAgent import maybe_generate_image, send_chat_completion_stream
+from django.views.decorators.csrf import csrf_exempt
 import json
 
-@require_GET
-def check_status(request):
-    history = [
-        {"role": "system", "content": "You are a helpful assistant. You have access to a tool generating images. When you use it, **always** insert image placeholders like [IMAGE_1] instead of Markdown."},
-        {"role": "user", "content": "Tell a short story, add an illustration."},
+@csrf_exempt
+def chat(request):
+    # Parse JSON body
+    try:
+        body = json.loads(request.body.decode('utf-8'))
+        message = body.get("message")
+        history = body.get("history", [])
+        
+        print(f"Received message: {message}")
+        print(f"Received history: {len(history)} messages")
+        
+    except json.JSONDecodeError:
+        return StreamingHttpResponse(
+            "data: " + json.dumps({"type": "error", "message": "Invalid JSON"}) + "\n\n",
+            content_type="text/event-stream"
+        )
+
+    if not message:
+        return StreamingHttpResponse(
+            "data: " + json.dumps({"type": "error", "message": "No message provided"}) + "\n\n",
+            content_type="text/event-stream"
+        )
+
+    # Build the full conversation history with system message
+    full_history = [
+        {"role": "system", "content": "You are a helpful assistant. You have access to a tool generating images. When you use it, **always** insert image placeholders like [IMAGE_1] instead of Markdown."}
     ]
+    
+    for msg in history:
+        if msg.get("content"):
+            full_history.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+    print(full_history)
 
     def event_stream():
         # 1️⃣ Generate images and updated history
-        updated_history, generated_images = maybe_generate_image(history)
+        updated_history, generated_images = maybe_generate_image(full_history)
 
         # 2️⃣ Send image events first
         for img in generated_images:
