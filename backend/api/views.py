@@ -7,7 +7,7 @@ import json
 def check_status(request):
     history = [
         {"role": "system", "content": "You are a helpful assistant. You have access to a tool generating images. When you use it, **always** insert image placeholders like [IMAGE_1] instead of Markdown."},
-        {"role": "user", "content": "Tell a short story, no illustration."},
+        {"role": "user", "content": "Tell a short story, add an illustration."},
     ]
 
     def event_stream():
