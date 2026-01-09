@@ -1,0 +1,39 @@
+services:
+  eva-vr-frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_FRONTEND_PORT: ${VITE_FRONTEND_PORT}
+        VITE_BACKEND_PORT: ${VITE_BACKEND_PORT}
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL}
+        VITE_BASE_URL: ${VITE_BASE_URL}
+      dockerfile: Dockerfile
+    container_name: eva-vr-frontend
+    env_file:
+      - ./.env
+    environment:
+      - VITE_FRONTEND_PORT=${VITE_FRONTEND_PORT}
+      - VITE_BASE_URL=${VITE_BASE_URL}
+    ports:
+      - "${VITE_FRONTEND_PORT}:80"
+    restart: always
+    networks:
+      - caddy
+
+  eva-vr-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eva-vr-backend
+    env_file:
+      - ./.env
+    ports:
+      - "${VITE_BACKEND_PORT}:${VITE_BACKEND_PORT}"
+    command: gunicorn --workers=1 --timeout=120 --preload backend.wsgi:application --bind 0.0.0.0:${VITE_BACKEND_PORT}
+    restart: always
+    networks:
+      - caddy
+
+networks:
+  caddy:
+    external: true

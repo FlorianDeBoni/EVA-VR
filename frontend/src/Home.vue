@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Test from "./components/Test.vue"
 import { ref } from 'vue';
 
 const text = ref('');
@@ -33,6 +34,7 @@ const handlePress = () => {
 </script>
 
 <template>
+  <Test></Test>
   <button @click="handlePress">TEST</button>
 
   <div style="white-space: pre-wrap; margin-top: 1rem;">

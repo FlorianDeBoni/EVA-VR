@@ -1,6 +1,9 @@
-Streaming endpoint with langchain
 Tool for Image generation
-Set up a free api for image generation
-Vue frontend
+Set up gemini api for image generation
+
+Frontend:
+- Input area
+- ChatHistory area
+- Clear ChatHistory button
 
 What extra features?
