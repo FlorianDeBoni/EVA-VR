@@ -1,12 +1,10 @@
-# views.py
-from .geminiTool import generate_image_with_gemini
-from typing import Generator, List, Dict, Any
 import json
+from typing import List, Dict, Any
+from .geminiTool import generate_image_with_gemini
 from openai import AzureOpenAI
-import os
 from decouple import config
 
-# Azure OpenAI client setup...
+# Azure OpenAI client
 client = AzureOpenAI(
     azure_endpoint=config("AZURE_ENDPOINT"),
     api_key=config("AZURE_OPENAI_KEY"),
@@ -35,13 +33,13 @@ GEMINI_TOOLS = [
 ]
 
 # -----------------------------
-# maybe_generate_image function
+# Maybe generate image
 # -----------------------------
-def maybe_generate_image(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def maybe_generate_image(history: List[Dict[str, Any]]):
     """
-    Runs a non-streamed call to see if an image should be generated.
-    Executes the Gemini tool if requested.
-    Returns updated history.
+    Sends history to Azure OpenAI.
+    Generates images using Gemini if requested.
+    Returns updated history + list of generated images.
     """
     response = client.chat.completions.create(
         model=GPT_COMPLETION_MODEL,
@@ -52,45 +50,42 @@ def maybe_generate_image(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     )
 
     message = response.choices[0].message
+    history.append(message)  # append assistant text
 
-    # No tool call → just continue
-    if not message.tool_calls:
-        history.append(message)
-        return history
+    generated_images = []
 
-    history.append(message)
+    if message.tool_calls:
+        for idx, tool_call in enumerate(message.tool_calls, start=1):
+            if tool_call.function.name == "generate_image":
+                args = json.loads(tool_call.function.arguments)
+                image_b64 = generate_image_with_gemini(prompt=args["prompt"])
+                image_id = f"IMAGE_{idx}"
 
-    for tool_call in message.tool_calls:
-        if tool_call.function.name == "generate_image":
-            args = json.loads(tool_call.function.arguments)
-            image_path = generate_image_with_gemini(
-                prompt=args["prompt"],
-                output_path=args.get("output_path", "generated_image.png"),
-            )
+                generated_images.append({
+                    "id": image_id,
+                    "b64": image_b64
+                })
 
-            history.append({
-                "role": "tool",
-                "name": tool_call.function.name,
-                "tool_call_id": tool_call.id,
-                "content": f"Image generated at {image_path}",
-            })
+                # Append tool message so Azure knows tool call is fulfilled
+                history.append({
+                    "role": "tool",
+                    "name": tool_call.function.name,
+                    "tool_call_id": tool_call.id,
+                    "content": f"Image generated and stored as {image_id}"
+                })
 
-    return history
+    return history, generated_images
 
-def send_chat_completion_stream(
-    history: List[Dict],
-    model: str = GPT_COMPLETION_MODEL,
-) -> Generator[str, None, None]:
-    """
-    Streams chat completion from Azure OpenAI.
-    Assumes image has already been generated.
-    """
-    # Stream final response from the model
+
+# -----------------------------
+# Streaming text
+# -----------------------------
+def send_chat_completion_stream(history: List[Dict[str, Any]], model=GPT_COMPLETION_MODEL):
     response = client.chat.completions.create(
         model=model,
         messages=history,
         temperature=1.0,
-        stream=True,  # streaming enabled
+        stream=True,
     )
 
     for chunk in response:

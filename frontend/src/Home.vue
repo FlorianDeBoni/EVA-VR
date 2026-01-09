@@ -1,17 +1,15 @@
 <script setup lang="ts">
-import Test from "./components/Test.vue"
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 const text = ref('');
+const images = ref<{ id: string, b64: string }[]>([]);
 let eventSource: EventSource | null = null;
 
 const handlePress = () => {
   text.value = '';
-  
-  // Close previous stream if any
-  if (eventSource) {
-    eventSource.close();
-  }
+  images.value = [];
+
+  if (eventSource) eventSource.close();
 
   eventSource = new EventSource(`${import.meta.env.VITE_BACKEND_URL}/api/check`);
 
@@ -22,7 +20,17 @@ const handlePress = () => {
       return;
     }
 
-    text.value += event.data;
+    const data = JSON.parse(event.data);
+
+    if (data.type === 'image') {
+      images.value.push({ id: data.id, b64: data.b64 });
+      return;
+    }
+
+    if (data.type === 'text' && data.delta !== "[DONE]") {
+      text.value += data.delta;
+      return;
+    }
   };
 
   eventSource.onerror = (err) => {
@@ -31,13 +39,26 @@ const handlePress = () => {
     eventSource = null;
   };
 };
+
+// Replace [IMAGE_1] with <img> tags
+const processedText = computed(() => {
+  let result = text.value;
+
+  images.value.forEach(img => {
+    const imgTag = `<div style="text-align:center; margin:1rem 0;">
+                      <img src="data:image/png;base64,${img.b64}" style="max-width:300px;" />
+                    </div>`;
+    result = result.replace(`[${img.id}]`, imgTag);
+  });
+
+  return result;
+});
 </script>
 
 <template>
-  <Test></Test>
   <button @click="handlePress">TEST</button>
 
   <div style="white-space: pre-wrap; margin-top: 1rem;">
-    {{ text }}
+    <span v-html="processedText"></span>
   </div>
 </template>
