@@ -2,6 +2,7 @@
 
 import requests
 from typing import List, Optional, Dict
+from urllib.parse import urlparse
 
 # -------------------------------------------------------------------
 # Wikimedia configuration
@@ -18,21 +19,64 @@ HEADERS = {
 
 REQUEST_TIMEOUT = 10
 
+ALLOWED_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
+ALLOWED_IMAGE_DOMAINS = (
+    "upload.wikimedia.org",
+)
 
 # -------------------------------------------------------------------
-# Low-level helpers
+# Validation helpers (STRICT)
 # -------------------------------------------------------------------
 
-def head_request(url: str) -> requests.Response:
+def is_allowed_image_domain(url: str) -> bool:
     """
-    Validate that a URL is reachable.
+    Hard gate: only allow Wikimedia Commons image CDN.
     """
-    return requests.head(
-        url,
-        allow_redirects=True,
-        timeout=5,
-        headers=HEADERS
-    )
+    domain = urlparse(url).netloc.lower()
+    return any(domain.endswith(d) for d in ALLOWED_IMAGE_DOMAINS)
+
+
+def is_renderable_image_url(url: str) -> bool:
+    """
+    Ensure the URL points to a browser-renderable raster image.
+    """
+    url = url.lower().split("?")[0]
+    return url.endswith(ALLOWED_EXTENSIONS)
+
+
+def validate_image_url(url: str) -> bool:
+    """
+    Validate that the image is accessible and has a correct MIME type.
+    Uses HEAD first, falls back to GET for CDNs that block HEAD.
+    """
+    try:
+        # 1️⃣ Try HEAD first
+        response = requests.head(
+            url,
+            allow_redirects=True,
+            timeout=5,
+            headers=HEADERS
+        )
+
+        if response.status_code == 200:
+            content_type = response.headers.get("Content-Type", "")
+            return content_type.startswith("image/")
+
+        # 2️⃣ Fallback for CDNs blocking HEAD
+        if response.status_code in (403, 405):
+            response = requests.get(
+                url,
+                stream=True,
+                timeout=5,
+                headers=HEADERS
+            )
+            content_type = response.headers.get("Content-Type", "")
+            return response.status_code == 200 and content_type.startswith("image/")
+
+    except requests.RequestException:
+        return False
+
+    return False
 
 
 # -------------------------------------------------------------------
@@ -42,7 +86,7 @@ def head_request(url: str) -> requests.Response:
 def search_wikimedia_titles(query: str, limit: int = 5) -> List[str]:
     """
     Search Wikimedia Commons for file titles matching the query.
-    Returns a list of file titles (e.g. 'File:Dokk1 Aarhus - 2015.jpg').
+    Returns file titles only (namespace 6).
     """
     params = {
         "action": "query",
@@ -68,13 +112,9 @@ def search_wikimedia_titles(query: str, limit: int = 5) -> List[str]:
 
 
 # -------------------------------------------------------------------
-# Step 2: Fetch image metadata for a given file title
+# Step 2: Fetch image metadata
 # -------------------------------------------------------------------
-
 def fetch_imageinfo(title: str) -> Optional[Dict]:
-    """
-    Fetch image URL and metadata for a given Wikimedia file title.
-    """
     params = {
         "action": "query",
         "format": "json",
@@ -91,8 +131,7 @@ def fetch_imageinfo(title: str) -> Optional[Dict]:
     )
     r.raise_for_status()
 
-    data = r.json()
-    pages = data.get("query", {}).get("pages", {})
+    pages = r.json().get("query", {}).get("pages", {})
 
     for page in pages.values():
         imageinfo = page.get("imageinfo")
@@ -100,10 +139,16 @@ def fetch_imageinfo(title: str) -> Optional[Dict]:
             continue
 
         info = imageinfo[0]
+        url = info.get("url")
+
+        # 🔒 ABSOLUTE RULE: Wikimedia CDN only
+        if not url or not url.startswith("https://upload.wikimedia.org/"):
+            return None
+
         meta = info.get("extmetadata", {})
 
         return {
-            "url": info.get("url"),
+            "url": url,
             "author": meta.get("Artist", {}).get("value"),
             "license": meta.get("LicenseShortName", {}).get("value"),
             "source": "wikimedia",
@@ -114,24 +159,14 @@ def fetch_imageinfo(title: str) -> Optional[Dict]:
 
 
 # -------------------------------------------------------------------
-# Public tool entrypoint (used by LLM tool calls)
+# Public tool entrypoint (USED BY LLM TOOL CALLS)
 # -------------------------------------------------------------------
 
 def fetch_wikimedia_image(query: str) -> Optional[Dict]:
     """
-    Fetch a single valid, publicly licensed image from Wikimedia Commons
-    matching the query.
-
-    Returns:
-        {
-            "url": str,
-            "author": str | None,
-            "license": str | None,
-            "source": "wikimedia",
-            "title": str
-        }
-        or None if nothing valid is found.
+    Returns ONE guaranteed frontend-safe Wikimedia image or None.
     """
+    print("Fetching Wikimedia image")
     titles = search_wikimedia_titles(query)
 
     for title in titles:
@@ -140,9 +175,23 @@ def fetch_wikimedia_image(query: str) -> Optional[Dict]:
             if not image or not image.get("url"):
                 continue
 
-            response = head_request(image["url"])
-            if response.status_code == 200:
-                return image
+            url = image["url"]
+
+            # 🔒 1️⃣ HARD DOMAIN GATE (NO EXCEPTIONS)
+            if not is_allowed_image_domain(url):
+                print(f"[WIKIMEDIA] Rejected external URL: {url}")
+                continue
+
+            # 2️⃣ Extension allowlist
+            if not is_renderable_image_url(url):
+                continue
+
+            # 3️⃣ Accessibility + MIME validation
+            if not validate_image_url(url):
+                continue
+
+            # ✅ Guaranteed frontend-safe image
+            return image
 
         except requests.RequestException:
             continue

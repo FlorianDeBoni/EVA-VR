@@ -38,7 +38,9 @@ def chat(request):
     # Build the full conversation history with system message
     full_history = [
         {"role": "system", "content": system_prompt},
-        {"role": "system", "content": "When you generate an image, use the tool provided and **always** insert image placeholders like [IMAGE_1] instead of Markdown. For image from the internet, don't do it but **use html <div class=\"image-container\"><img src=\"...\" class=\"message-image\" alt=\"Image from the internet\" /></div> instead**."}
+        {"role": "system", "content": """You are NOT allowed to include <img> tags or image URLs in your text.
+All images MUST come from tool calls only.
+If no tool image is available, describe the image in text."""}
     ]
     for msg in history:
         if msg.get("content"):

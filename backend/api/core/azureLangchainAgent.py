@@ -37,7 +37,7 @@ WIKIMEDIA_IMAGE_TOOL = {
         "name": "fetch_wikimedia_image",
         "description": (
             "Fetch a real, publicly licensed reference image from Wikimedia Commons. "
-            "Only returns valid, reachable image URLs. "
+            "Only returns browser-renderable raster images (PNG, JPG, WEBP). Never PDFs, SVGs, or documents."
             "Use this tool before suggesting AI-generated images."
         ),
         "parameters": {
@@ -140,5 +140,3 @@ def send_chat_completion_stream(history: List[Dict[str, Any]], model=GPT_COMPLET
     for chunk in response:
         if chunk.choices and chunk.choices[0].delta.content:
             yield chunk.choices[0].delta.content
-
-    yield "[DONE]"
