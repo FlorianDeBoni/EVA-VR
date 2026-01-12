@@ -1,23 +1,21 @@
 <template>
   <div class="chat-app">
-    <div class="chat-content">
-      <ChatHistory>
-        <!-- Welcome message when no messages -->
-        <div v-if="messages.length === 0" class="welcome-message">
-          Welcome to EVA-VR chatBot, please start a conversation...
-        </div>
+    <ChatHistory>
+      <!-- Welcome message when no messages -->
+      <div v-if="messages.length === 0" class="welcome-message">
+        Welcome to EVA-VR chatBot, please start a conversation...
+      </div>
 
-        <!-- Message bubbles -->
-        <MessageBubble
-          v-for="(msg, index) in messages"
-          :key="index"
-          :message="msg.text"
-          :isUser="msg.isUser"
-          :timestamp="msg.timestamp"
-          :images="msg.images"
-        />
-      </ChatHistory>
-    </div>
+      <!-- Message bubbles -->
+      <MessageBubble
+        v-for="(msg, index) in messages"
+        :key="index"
+        :message="msg.text"
+        :isUser="msg.isUser"
+        :timestamp="msg.timestamp"
+        :images="msg.images"
+      />
+    </ChatHistory>
     
     <ChatInput @send="handleSend" :disabled="isStreaming" />
   </div>
@@ -36,7 +34,12 @@ interface Message {
   images?: { id: string, b64: string }[];
 }
 
-const messages = ref<Message[]>([]);
+const messages = ref<Message[]>([{
+  text: "👋 Hello, and welcome to DOKK1 2045! Would you like to continue in english or danish?",
+  isUser: false,
+  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  images: []
+}]);
 
 const isStreaming = ref(false);
 let abortController: AbortController | null = null;
@@ -166,16 +169,7 @@ const handleSend = async (messageText: string) => {
   overflow: hidden;
 }
 
-.chat-content {
-  overflow: hidden;
-  position: relative;
-}
-
 .welcome-message {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
   color: #9ca3af;
   font-size: 16px;
   text-align: center;

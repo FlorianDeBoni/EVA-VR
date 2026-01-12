@@ -6,13 +6,14 @@
         v-model="message"
         @input="adjustHeight"
         @keydown.enter="handleEnter"
+        :disabled="disabled"
         placeholder="Type your message... (Shift+Enter to send)"
         rows="1"
         class="chat-input"
       ></textarea>
       <button 
         @click="handleSend"
-        :disabled="!message.trim()"
+        :disabled="!message.trim() || disabled"
         class="send-button"
         aria-label="Send message"
       >
@@ -33,83 +34,73 @@
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent, ref, nextTick } from 'vue';
+<script setup lang="ts">
+import { ref, nextTick } from 'vue';
 
-export default defineComponent({
-  name: 'ChatInput',
-  emits: ['send'],
-  setup(props, { emit }) {
-    const message = ref('');
-    const textareaRef = ref<HTMLTextAreaElement | null>(null);
-    const maxLines = 4;
-    const lineHeight = 24; // Adjust based on your font size
+interface Props {
+  disabled?: boolean;
+}
 
-    const adjustHeight = () => {
-      nextTick(() => {
-        if (!textareaRef.value) return;
-        
-        const textarea = textareaRef.value;
-        textarea.style.height = 'auto';
-        
-        const scrollHeight = textarea.scrollHeight;
-        const maxHeight = lineHeight * maxLines;
-        
-        if (scrollHeight > maxHeight) {
-          textarea.style.height = `${maxHeight}px`;
-          textarea.style.overflowY = 'auto';
-        } else {
-          textarea.style.height = `${scrollHeight}px`;
-          textarea.style.overflowY = 'hidden';
-        }
-      });
-    };
-
-    const handleEnter = (event: KeyboardEvent) => {
-      // Shift+Enter sends the message
-      if (event.shiftKey) {
-        event.preventDefault();
-        handleSend();
-      }
-      // Regular Enter just adds a new line (default behavior)
-    };
-
-    const handleSend = () => {
-      if (message.value.trim()) {
-        emit('send', message.value);
-        message.value = '';
-        
-        // Reset textarea height
-        nextTick(() => {
-          if (textareaRef.value) {
-            textareaRef.value.style.height = 'auto';
-          }
-        });
-      }
-    };
-
-    return {
-      message,
-      textareaRef,
-      adjustHeight,
-      handleEnter,
-      handleSend
-    };
-  }
+const props = withDefaults(defineProps<Props>(), {
+  disabled: false
 });
+
+const emit = defineEmits<{
+  send: [message: string]
+}>();
+
+const message = ref('');
+const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const maxLines = 4;
+const lineHeight = 24;
+
+const adjustHeight = () => {
+  nextTick(() => {
+    if (!textareaRef.value) return;
+    
+    const textarea = textareaRef.value;
+    textarea.style.height = 'auto';
+    
+    const scrollHeight = textarea.scrollHeight;
+    const maxHeight = lineHeight * maxLines;
+    
+    if (scrollHeight > maxHeight) {
+      textarea.style.height = `${maxHeight}px`;
+      textarea.style.overflowY = 'auto';
+    } else {
+      textarea.style.height = `${scrollHeight}px`;
+      textarea.style.overflowY = 'hidden';
+    }
+  });
+};
+
+const handleEnter = (event: KeyboardEvent) => {
+  if (event.shiftKey && !props.disabled) {
+    event.preventDefault();
+    handleSend();
+  }
+};
+
+const handleSend = () => {
+  if (message.value.trim() && !props.disabled) {
+    emit('send', message.value);
+    message.value = '';
+    
+    nextTick(() => {
+      if (textareaRef.value) {
+        textareaRef.value.style.height = 'auto';
+      }
+    });
+  }
+};
 </script>
 
 <style scoped>
 .chat-input-container {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
   width: 100%;
   padding: 16px;
   background: #ffffff;
   border-top: 1px solid #e5e7eb;
-  z-index: 100;
 }
 
 .input-wrapper {
@@ -142,7 +133,7 @@ export default defineComponent({
   font-family: inherit;
   color: #111827;
   min-height: 24px;
-  max-height: 96px; /* 4 lines * 24px */
+  max-height: 96px;
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
   padding: 0;
@@ -150,7 +141,6 @@ export default defineComponent({
   align-self: center;
 }
 
-/* Webkit browsers (Chrome, Safari, Edge) */
 .chat-input::-webkit-scrollbar {
   width: 8px;
 }
