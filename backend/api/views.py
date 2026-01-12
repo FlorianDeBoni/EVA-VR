@@ -38,9 +38,8 @@ def chat(request):
     # Build the full conversation history with system message
     full_history = [
         {"role": "system", "content": system_prompt},
-        {"role": "system", "content": "When you generate an image, use the tool provided and **always** insert image placeholders like [IMAGE_1] instead of Markdown. For image from the internet, don't do it but **use html <img src=\"...\"> instead**."}
+        {"role": "system", "content": "When you generate an image, use the tool provided and **always** insert image placeholders like [IMAGE_1] instead of Markdown. For image from the internet, don't do it but **use html <div class=\"image-container\"><img src=\"...\" class=\"message-image\" alt=\"Image from the internet\" /></div> instead**."}
     ]
-    
     for msg in history:
         if msg.get("content"):
             full_history.append({
@@ -60,8 +59,6 @@ def chat(request):
                 "b64": img["b64"]
             })
             yield f"data: {payload}\n\n"
-        
-        debug = ""
 
         # 3️⃣ Stream text with placeholders [IMAGE_1], [IMAGE_2], etc.
         for chunk in send_chat_completion_stream(updated_history):
@@ -70,10 +67,6 @@ def chat(request):
                 "delta": chunk
             })
             yield f"data: {payload}\n\n"
-            debug += chunk + " "
-
-        print("DEBUG GENERATED ANSWER:", debug)
-
 
         # 4️⃣ End of stream
         yield "data: [DONE]\n\n"
