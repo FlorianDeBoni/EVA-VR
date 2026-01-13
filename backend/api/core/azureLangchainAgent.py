@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 
 from openai import AzureOpenAI
 from decouple import config
+import time
 
 from .geminiTool import generate_image_with_gemini
 from .wikimediaTool import fetch_reference_images
@@ -96,7 +97,6 @@ def maybe_generate_image(history: List[Dict[str, Any]]):
         messages=history,
         tools=[REFERENCE_IMAGE_TOOL, GEMINI_IMAGE_TOOL],
         tool_choice="auto",
-        temperature=0,
     )
 
     assistant_message = response.choices[0].message
@@ -186,7 +186,6 @@ def maybe_generate_image(history: List[Dict[str, Any]]):
     selection = client.chat.completions.create(
         model=GPT_COMPLETION_MODEL,
         messages=selection_prompt,
-        temperature=0,
     )
 
     selection_message = selection.choices[0].message
@@ -232,10 +231,11 @@ def send_chat_completion_stream(
     response = client.chat.completions.create(
         model=model,
         messages=history,
-        temperature=0,
         stream=True,
     )
 
     for chunk in response:
         if chunk.choices and chunk.choices[0].delta.content:
-            yield chunk.choices[0].delta.content
+            for c in chunk.choices[0].delta.content:
+                yield c
+                time.sleep(0.01)  # slight delay for smoother streaming
