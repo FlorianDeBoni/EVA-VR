@@ -37,15 +37,17 @@ WIKIMEDIA_IMAGE_TOOL = {
         "name": "fetch_wikimedia_image",
         "description": (
             "Fetch a real, publicly licensed reference image from Wikimedia Commons. "
-            "Only returns browser-renderable raster images (PNG, JPG, WEBP). Never PDFs, SVGs, or documents."
-            "Use this tool before suggesting AI-generated images."
+            "Only returns browser-renderable raster images (PNG, JPG, WEBP) hosted on upload.wikimedia.org. "
+            "Never returns PDFs, SVGs, webpages, or documents. "
+            "This is the ONLY allowed way to introduce real-world images. "
+            "You MUST call this tool before proposing or generating any AI-generated image."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "What the image should visually represent"
+                    "description": "A concise description of what the image should visually represent"
                 }
             },
             "required": ["query"]

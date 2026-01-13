@@ -83,17 +83,14 @@ def validate_image_url(url: str) -> bool:
 # Step 1: Search for file titles
 # -------------------------------------------------------------------
 
-def search_wikimedia_titles(query: str, limit: int = 5) -> List[str]:
-    """
-    Search Wikimedia Commons for file titles matching the query.
-    Returns file titles only (namespace 6).
-    """
+def search_wikimedia_titles(query: str, limit: int = 15) -> List[str]:
+
     params = {
         "action": "query",
         "format": "json",
         "list": "search",
-        "srsearch": query,
-        "srnamespace": 6,  # File namespace only
+        "srsearch": f'{query} -filetype:pdf -filetype:djvu -filetype:tiff',
+        "srnamespace": 6,
         "srlimit": limit,
     }
 
@@ -143,7 +140,8 @@ def fetch_imageinfo(title: str) -> Optional[Dict]:
 
         # 🔒 ABSOLUTE RULE: Wikimedia CDN only
         if not url or not url.startswith("https://upload.wikimedia.org/"):
-            return None
+            continue
+
 
         meta = info.get("extmetadata", {})
 
@@ -169,6 +167,8 @@ def fetch_wikimedia_image(query: str) -> Optional[Dict]:
     print("Fetching Wikimedia image")
     titles = search_wikimedia_titles(query)
 
+    print(f"Found {len(titles)} candidate titles")
+
     for title in titles:
         try:
             image = fetch_imageinfo(title)
@@ -176,7 +176,7 @@ def fetch_wikimedia_image(query: str) -> Optional[Dict]:
                 continue
 
             url = image["url"]
-
+            
             # 🔒 1️⃣ HARD DOMAIN GATE (NO EXCEPTIONS)
             if not is_allowed_image_domain(url):
                 print(f"[WIKIMEDIA] Rejected external URL: {url}")
@@ -184,12 +184,15 @@ def fetch_wikimedia_image(query: str) -> Optional[Dict]:
 
             # 2️⃣ Extension allowlist
             if not is_renderable_image_url(url):
+                print(f"[WIKIMEDIA] Rejected external URL: {url}")
                 continue
 
             # 3️⃣ Accessibility + MIME validation
             if not validate_image_url(url):
+                print(f"[WIKIMEDIA] Rejected external URL: {url}")
                 continue
 
+            print(f"[WIKIMEDIA] Selected image URL: {url}")
             # ✅ Guaranteed frontend-safe image
             return image
 
