@@ -5,3 +5,4 @@ google-genai
 langchain
 langchain-openai
 python-decouple
+google-search-results
