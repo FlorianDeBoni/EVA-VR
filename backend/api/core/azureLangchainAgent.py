@@ -1,7 +1,7 @@
 import json
 from typing import List, Dict, Any
 from .geminiTool import generate_image_with_gemini
-from .wikimediaTool import fetch_wikimedia_image
+from .wikimediaTool import fetch_reference_image
 from openai import AzureOpenAI
 from decouple import config
 
@@ -31,15 +31,16 @@ GEMINI_TOOLS = {
         },
     }
 
-WIKIMEDIA_IMAGE_TOOL = {
+REFERENCE_IMAGE_TOOL = {
     "type": "function",
     "function": {
-        "name": "fetch_wikimedia_image",
+        "name": "fetch_reference_image",
         "description": (
-            "Fetch a real, publicly licensed reference image from Wikimedia Commons. "
+            "Fetch a real-world reference image for something that exists or existed. "
+            "Uses Wikipedia page images first, with Wikimedia Commons as fallback. "
             "Only returns browser-renderable raster images (PNG, JPG, WEBP) hosted on upload.wikimedia.org. "
             "Never returns PDFs, SVGs, webpages, or documents. "
-            "This is the ONLY allowed way to introduce real-world images. "
+            "This is the ONLY allowed way to introduce real-world reference images. "
             "You MUST call this tool before proposing or generating any AI-generated image."
         ),
         "parameters": {
@@ -47,14 +48,13 @@ WIKIMEDIA_IMAGE_TOOL = {
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "A concise description of what the image should visually represent"
+                    "description": "A concise description of the real-world thing to find a reference image for"
                 }
             },
             "required": ["query"]
         }
     }
 }
-
 
 # -----------------------------
 # Maybe generate image
@@ -63,7 +63,7 @@ def maybe_generate_image(history: List[Dict[str, Any]]):
     response = client.chat.completions.create(
         model=GPT_COMPLETION_MODEL,
         messages=history,
-        tools=[GEMINI_TOOLS, WIKIMEDIA_IMAGE_TOOL],
+        tools=[GEMINI_TOOLS, REFERENCE_IMAGE_TOOL],
         tool_choice="auto",
         temperature=1.0,
     )
@@ -79,8 +79,8 @@ def maybe_generate_image(history: List[Dict[str, Any]]):
             args = json.loads(tool_call.function.arguments)
 
             # ---- Wikimedia tool ----
-            if tool_call.function.name == "fetch_wikimedia_image":
-                result = fetch_wikimedia_image(query=args["query"])
+            if tool_call.function.name == "fetch_reference_image":
+                result = fetch_reference_image(query=args["query"])
 
                 if result:
                     ref_id = f"WIKI_{idx}"

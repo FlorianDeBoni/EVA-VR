@@ -1,4 +1,3 @@
-from multiprocessing.util import debug
 from django.http import StreamingHttpResponse
 from .core.azureLangchainAgent import maybe_generate_image, send_chat_completion_stream
 from django.views.decorators.csrf import csrf_exempt
@@ -25,7 +24,7 @@ def chat(request):
             content_type="text/event-stream"
         )
 
-    system_prompt = "You are a helpful assistant. You have access to a tool generating images. When you use it, **always** insert image placeholders like [IMAGE_1] instead of Markdown."
+    system_prompt = "You are a helpful assistant. You have access to a tool generating images. When you use it, **always** insert image placeholders like [IMAGE_1] instead of Markdown. "
 
     current_dir = Path(__file__).parent
 
@@ -38,7 +37,8 @@ def chat(request):
     # Build the full conversation history with system message
     full_history = [
         {"role": "system", "content": system_prompt},
-        {"role": "system", "content": "You are a helpful assistant. You have access to a tool generating images. When you use it, **always** insert image placeholders like [IMAGE_1] instead of Markdown."}
+        {"role": "system", "content": "You have access to a tool fetching images from the internet. When you use it, **always** insert image html as <div class=\"image-container\"><img src=\"...\" class=\"message-image\" alt=\"Fetched image\" /></div>"},
+        {"role": "system", "content": "You have access to a tool generating images. When you use it, **always** insert image placeholders like [IMAGE_1] instead of Markdown."}
     ]
     for msg in history:
         if msg.get("content"):

@@ -1,13 +1,14 @@
-# wikimediaTool.py
+# referenceImageTool.py
 
 import requests
 from typing import List, Optional, Dict
 from urllib.parse import urlparse
 
 # -------------------------------------------------------------------
-# Wikimedia configuration
+# Configuration
 # -------------------------------------------------------------------
 
+WIKIPEDIA_API_URL = "https://en.wikipedia.org/w/api.php"
 WIKIMEDIA_API_URL = "https://commons.wikimedia.org/w/api.php"
 
 HEADERS = {
@@ -20,76 +21,146 @@ HEADERS = {
 REQUEST_TIMEOUT = 10
 
 ALLOWED_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
-ALLOWED_IMAGE_DOMAINS = (
-    "upload.wikimedia.org",
-)
+ALLOWED_IMAGE_DOMAIN = "upload.wikimedia.org"
 
 # -------------------------------------------------------------------
-# Validation helpers (STRICT)
+# Validation helpers
 # -------------------------------------------------------------------
-
-def is_allowed_image_domain(url: str) -> bool:
-    """
-    Hard gate: only allow Wikimedia Commons image CDN.
-    """
-    domain = urlparse(url).netloc.lower()
-    return any(domain.endswith(d) for d in ALLOWED_IMAGE_DOMAINS)
-
 
 def is_renderable_image_url(url: str) -> bool:
-    """
-    Ensure the URL points to a browser-renderable raster image.
-    """
     url = url.lower().split("?")[0]
     return url.endswith(ALLOWED_EXTENSIONS)
 
 
+def is_allowed_domain(url: str) -> bool:
+    domain = urlparse(url).netloc.lower()
+    return domain.endswith(ALLOWED_IMAGE_DOMAIN)
+
+
 def validate_image_url(url: str) -> bool:
     """
-    Validate that the image is accessible and has a correct MIME type.
-    Uses HEAD first, falls back to GET for CDNs that block HEAD.
+    Validate existence + MIME type.
+    Uses HEAD, falls back to GET when needed.
     """
     try:
-        # 1️⃣ Try HEAD first
-        response = requests.head(
+        r = requests.head(
             url,
             allow_redirects=True,
             timeout=5,
             headers=HEADERS
         )
 
-        if response.status_code == 200:
-            content_type = response.headers.get("Content-Type", "")
-            return content_type.startswith("image/")
+        if r.status_code == 200:
+            return r.headers.get("Content-Type", "").startswith("image/")
 
-        # 2️⃣ Fallback for CDNs blocking HEAD
-        if response.status_code in (403, 405):
-            response = requests.get(
+        if r.status_code in (403, 405):
+            r = requests.get(
                 url,
                 stream=True,
                 timeout=5,
                 headers=HEADERS
             )
-            content_type = response.headers.get("Content-Type", "")
-            return response.status_code == 200 and content_type.startswith("image/")
+            return (
+                r.status_code == 200
+                and r.headers.get("Content-Type", "").startswith("image/")
+            )
 
     except requests.RequestException:
         return False
 
     return False
 
-
 # -------------------------------------------------------------------
-# Step 1: Search for file titles
+# Strategy 1: Wikipedia page–based reference image (PRIMARY)
 # -------------------------------------------------------------------
 
-def search_wikimedia_titles(query: str, limit: int = 15) -> List[str]:
-
+def search_wikipedia_page(query: str) -> Optional[str]:
     params = {
         "action": "query",
         "format": "json",
         "list": "search",
-        "srsearch": f'{query} -filetype:pdf -filetype:djvu -filetype:tiff',
+        "srsearch": query,
+        "srlimit": 1,
+    }
+
+    r = requests.get(
+        WIKIPEDIA_API_URL,
+        params=params,
+        headers=HEADERS,
+        timeout=REQUEST_TIMEOUT
+    )
+    r.raise_for_status()
+
+    results = r.json().get("query", {}).get("search", [])
+    if not results:
+        return None
+
+    return results[0]["title"]
+
+
+def fetch_wikipedia_page_image(title: str) -> Optional[str]:
+    params = {
+        "action": "query",
+        "format": "json",
+        "titles": title,
+        "prop": "pageimages",
+        "pithumbsize": 1600,
+    }
+
+    r = requests.get(
+        WIKIPEDIA_API_URL,
+        params=params,
+        headers=HEADERS,
+        timeout=REQUEST_TIMEOUT
+    )
+    r.raise_for_status()
+
+    pages = r.json().get("query", {}).get("pages", {})
+
+    for page in pages.values():
+        thumb = page.get("thumbnail")
+        if thumb:
+            return thumb.get("source")
+
+    return None
+
+
+def fetch_wikipedia_reference_image(query: str) -> Optional[Dict]:
+    print("[REFERENCE] Trying Wikipedia page image")
+
+    title = search_wikipedia_page(query)
+    if not title:
+        return None
+
+    url = fetch_wikipedia_page_image(title)
+    if not url:
+        return None
+
+    if not is_allowed_domain(url):
+        return None
+
+    if not is_renderable_image_url(url):
+        return None
+
+    if not validate_image_url(url):
+        return None
+
+    return {
+        "url": url,
+        "source": "wikipedia",
+        "title": title,
+    }
+
+# -------------------------------------------------------------------
+# Strategy 2: Wikimedia Commons fallback (SECONDARY)
+# -------------------------------------------------------------------
+
+def search_commons_titles(query: str, limit: int = 15) -> List[str]:
+    params = {
+        "action": "query",
+        "format": "json",
+        "list": "search",
+        "srsearch": f"{query} -filetype:pdf -filetype:djvu -filetype:tiff",
         "srnamespace": 6,
         "srlimit": limit,
     }
@@ -102,16 +173,10 @@ def search_wikimedia_titles(query: str, limit: int = 15) -> List[str]:
     )
     r.raise_for_status()
 
-    data = r.json()
-    search_results = data.get("query", {}).get("search", [])
-
-    return [item["title"] for item in search_results]
+    return [i["title"] for i in r.json().get("query", {}).get("search", [])]
 
 
-# -------------------------------------------------------------------
-# Step 2: Fetch image metadata
-# -------------------------------------------------------------------
-def fetch_imageinfo(title: str) -> Optional[Dict]:
+def fetch_commons_imageinfo(title: str) -> Optional[Dict]:
     params = {
         "action": "query",
         "format": "json",
@@ -131,24 +196,16 @@ def fetch_imageinfo(title: str) -> Optional[Dict]:
     pages = r.json().get("query", {}).get("pages", {})
 
     for page in pages.values():
-        imageinfo = page.get("imageinfo")
-        if not imageinfo:
+        info = page.get("imageinfo")
+        if not info:
             continue
 
-        info = imageinfo[0]
-        url = info.get("url")
-
-        # 🔒 ABSOLUTE RULE: Wikimedia CDN only
+        url = info[0].get("url")
         if not url or not url.startswith("https://upload.wikimedia.org/"):
             continue
 
-
-        meta = info.get("extmetadata", {})
-
         return {
             "url": url,
-            "author": meta.get("Artist", {}).get("value"),
-            "license": meta.get("LicenseShortName", {}).get("value"),
             "source": "wikimedia",
             "title": title,
         }
@@ -156,47 +213,42 @@ def fetch_imageinfo(title: str) -> Optional[Dict]:
     return None
 
 
+def fetch_commons_reference_image(query: str) -> Optional[Dict]:
+    print("[REFERENCE] Trying Wikimedia Commons")
+
+    for title in search_commons_titles(query):
+        image = fetch_commons_imageinfo(title)
+        if not image:
+            continue
+
+        url = image["url"]
+
+        if not is_renderable_image_url(url):
+            continue
+
+        if not validate_image_url(url):
+            continue
+        print("[REFERENCE] Found Wikimedia reference image:", url)
+        return image
+
+    return None
+
 # -------------------------------------------------------------------
 # Public tool entrypoint (USED BY LLM TOOL CALLS)
 # -------------------------------------------------------------------
 
-def fetch_wikimedia_image(query: str) -> Optional[Dict]:
+def fetch_reference_image(query: str) -> Optional[Dict]:
     """
-    Returns ONE guaranteed frontend-safe Wikimedia image or None.
+    Fetch a real-world reference image.
+
+    Strategy:
+    1. Wikipedia page image (preferred)
+    2. Wikimedia Commons file search (fallback)
+    3. Return None if no reference exists
     """
-    print("Fetching Wikimedia image")
-    titles = search_wikimedia_titles(query)
+    image = fetch_wikipedia_reference_image(query)
+    if image:
+        print("[REFERENCE] Found Wikipedia reference image:", image["url"])
+        return image
 
-    print(f"Found {len(titles)} candidate titles")
-
-    for title in titles:
-        try:
-            image = fetch_imageinfo(title)
-            if not image or not image.get("url"):
-                continue
-
-            url = image["url"]
-            
-            # 🔒 1️⃣ HARD DOMAIN GATE (NO EXCEPTIONS)
-            if not is_allowed_image_domain(url):
-                print(f"[WIKIMEDIA] Rejected external URL: {url}")
-                continue
-
-            # 2️⃣ Extension allowlist
-            if not is_renderable_image_url(url):
-                print(f"[WIKIMEDIA] Rejected external URL: {url}")
-                continue
-
-            # 3️⃣ Accessibility + MIME validation
-            if not validate_image_url(url):
-                print(f"[WIKIMEDIA] Rejected external URL: {url}")
-                continue
-
-            print(f"[WIKIMEDIA] Selected image URL: {url}")
-            # ✅ Guaranteed frontend-safe image
-            return image
-
-        except requests.RequestException:
-            continue
-
-    return None
+    return fetch_commons_reference_image(query)
