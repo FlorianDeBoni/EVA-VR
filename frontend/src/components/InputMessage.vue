@@ -5,9 +5,9 @@
         ref="textareaRef"
         v-model="message"
         @input="adjustHeight"
-        @keydown.enter="handleEnter"
+        @keydown="handleEnter"
         :disabled="disabled"
-        placeholder="Type your message... (Shift+Enter to send)"
+        placeholder="Type your message... (ctrl+Enter for new lines)"
         rows="1"
         class="chat-input"
       ></textarea>
@@ -35,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
+import { ref, nextTick, onMounted } from 'vue';
 
 interface Props {
   disabled?: boolean;
@@ -54,6 +54,12 @@ const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const maxLines = 4;
 const lineHeight = 24;
 
+onMounted(() => {
+  nextTick(() => {
+    textareaRef.value?.focus();
+  });
+});
+
 const adjustHeight = () => {
   nextTick(() => {
     if (!textareaRef.value) return;
@@ -71,15 +77,43 @@ const adjustHeight = () => {
       textarea.style.height = `${scrollHeight}px`;
       textarea.style.overflowY = 'hidden';
     }
+    textarea.scrollTop = textarea.scrollHeight;
   });
 };
 
+
 const handleEnter = (event: KeyboardEvent) => {
-  if (event.shiftKey && !props.disabled) {
+  if (event.key !== 'Enter') return;
+  if (props.disabled) return;
+
+  const textarea = textareaRef.value;
+  if (!textarea) return;
+
+  // Ctrl / Cmd + Enter → insert newline manually
+  if (event.ctrlKey || event.metaKey) {
     event.preventDefault();
-    handleSend();
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+
+    message.value =
+      message.value.slice(0, start) +
+      '\n' +
+      message.value.slice(end);
+
+    nextTick(() => {
+      textarea.selectionStart = textarea.selectionEnd = start + 1;
+      adjustHeight();
+    });
+
+    return;
   }
+
+  // Enter → send
+  event.preventDefault();
+  handleSend();
 };
+
 
 const handleSend = () => {
   if (message.value.trim() && !props.disabled) {
