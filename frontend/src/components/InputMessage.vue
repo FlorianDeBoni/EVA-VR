@@ -35,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue';
+import { ref, nextTick, onMounted, watch } from 'vue';
 
 interface Props {
   disabled?: boolean;
@@ -58,6 +58,18 @@ onMounted(() => {
   nextTick(() => {
     textareaRef.value?.focus();
   });
+
+  watch(
+  () => props.disabled,
+  (isDisabled) => {
+    if (!isDisabled) {
+      nextTick(() => {
+        textareaRef.value?.focus();
+      });
+    }
+  }
+);
+
 });
 
 const adjustHeight = () => {

@@ -18,6 +18,7 @@ def chat(request):
         body = json.loads(request.body.decode("utf-8"))
         message = body.get("message")
         history = body.get("history", [])
+        reference_image = body.get("reference_image", "")
     except json.JSONDecodeError:
         return StreamingHttpResponse(
             "data: " + json.dumps({
@@ -68,7 +69,7 @@ def chat(request):
     def event_stream():
         # 1️⃣ Let the agent handle tools + image decisions
         updated_history, reference_images, generated_images = (
-            maybe_generate_image(full_history)
+            maybe_generate_image(full_history, reference_image=reference_image)
         )
 
         # 2️⃣ Send reference images chosen by the LLM (FIRST)

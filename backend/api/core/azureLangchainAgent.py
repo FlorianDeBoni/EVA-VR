@@ -30,23 +30,30 @@ GEMINI_IMAGE_TOOL = {
     "function": {
         "name": "generate_image",
         "description": (
-            "Generate an AI image using Gemini. "
-            "This should ONLY be used if no suitable real-world reference image exists. "
-            "Do NOT include image URLs or markdown. "
-            "Image output will be handled by the system."
+            "Generate or refine an AI image using Gemini. "
+            "If needs_image is true, the system will provide the previous image "
+            "for refinement instead of starting from scratch."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "prompt": {
                     "type": "string",
-                    "description": "A concrete, visual description of the image to generate"
+                    "description": "A concrete, visual description of the image"
+                },
+                "needs_image": {
+                    "type": "boolean",
+                    "description": (
+                        "Set to true ONLY if the request is a refinement of the "
+                        "previously generated image."
+                    )
                 }
             },
             "required": ["prompt"],
         },
     },
 }
+
 
 REFERENCE_IMAGE_TOOL = {
     "type": "function",
@@ -78,7 +85,7 @@ REFERENCE_IMAGE_TOOL = {
 # Tool-aware image handling
 # -------------------------------------------------------------------
 
-def maybe_generate_image(history: List[Dict[str, Any]]):
+def maybe_generate_image(history: List[Dict[str, Any]], reference_image: str = ""):
     """
     Azure-safe tool handling with strict image selection.
 
@@ -154,7 +161,7 @@ def maybe_generate_image(history: List[Dict[str, Any]]):
 
         # ---- AI image generation
         elif tool_call.function.name == "generate_image":
-            image_b64 = generate_image_with_gemini(prompt=args["prompt"])
+            image_b64 = generate_image_with_gemini(prompt=args["prompt"], needs_image=args.get("needs_image", False), reference_image=reference_image)
             image_id = f"IMAGE_{len(generated_images) + 1}"
 
             generated_images.append({

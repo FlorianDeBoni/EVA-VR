@@ -47,6 +47,8 @@ const messages = ref<Message[]>([{
   images: []
 }]);
 
+const currentImageB64 = ref<string | null>(null);
+
 const isStreaming = ref(false);
 let abortController: AbortController | null = null;
 
@@ -84,7 +86,8 @@ const handleSend = async (messageText: string) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: messageText,
-        history: getConversationHistory()
+        history: getConversationHistory(),
+        reference_image: currentImageB64.value ?? ""
       }),
       signal: abortController.signal
     });
@@ -126,7 +129,12 @@ const handleSend = async (messageText: string) => {
             title: parsed.title,
             source: parsed.source
           });
+
+          if (parsed.b64) {
+            currentImageB64.value = parsed.b64;
+          }
         }
+
 
         if (parsed.type === 'text' && parsed.delta) {
           messages.value[botMessageIndex].text += parsed.delta;
