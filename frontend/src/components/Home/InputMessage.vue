@@ -7,7 +7,7 @@
         @input="adjustHeight"
         @keydown="handleEnter"
         :disabled="disabled"
-        placeholder="Type your message... (ctrl+Enter for new lines)"
+        placeholder="Type your message... (ctrl+Enter to send)"
         rows="1"
         class="chat-input"
       ></textarea>
@@ -93,39 +93,35 @@ const adjustHeight = () => {
   });
 };
 
-
 const handleEnter = (event: KeyboardEvent) => {
   if (event.key !== 'Enter') return;
   if (props.disabled) return;
 
-  const textarea = textareaRef.value;
-  if (!textarea) return;
-
-  // Ctrl / Cmd + Enter → insert newline manually
+  // Ctrl / Cmd + Enter → send
   if (event.ctrlKey || event.metaKey) {
     event.preventDefault();
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-
-    message.value =
-      message.value.slice(0, start) +
-      '\n' +
-      message.value.slice(end);
-
-    nextTick(() => {
-      textarea.selectionStart = textarea.selectionEnd = start + 1;
-      adjustHeight();
-    });
-
+    handleSend();
     return;
   }
 
-  // Enter → send
+  // Enter → insert newline
   event.preventDefault();
-  handleSend();
-};
+  const textarea = textareaRef.value;
+  if (!textarea) return;
 
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+
+  message.value =
+    message.value.slice(0, start) +
+    '\n' +
+    message.value.slice(end);
+
+  nextTick(() => {
+    textarea.selectionStart = textarea.selectionEnd = start + 1;
+    adjustHeight();
+  });
+};
 
 const handleSend = () => {
   if (message.value.trim() && !props.disabled) {
