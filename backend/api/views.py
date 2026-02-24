@@ -22,7 +22,7 @@ def getPrompts(request):
 
         with open(prompt_path, "r", encoding="utf-8") as f:
             system_prompt = f.read()
-        return JsonResponse({"System prompt": system_prompt}, status=200)
+        return JsonResponse({"prompt": system_prompt}, status=200)
     
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

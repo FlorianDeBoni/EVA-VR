@@ -4,5 +4,5 @@ from .views import chat, getCsrfToken, getPrompts
 urlpatterns = [
     path("chat", chat, name="check"),
     path("csrf", getCsrfToken, name="csrf"),
-    path("getPrompts", getPrompts, name="getPrompts"),
+    path("getPrompt", getPrompts, name="getPrompt"),
 ]

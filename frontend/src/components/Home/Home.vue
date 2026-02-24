@@ -1,5 +1,6 @@
 <template>
   <div class="chat-app">
+    <Header />
     <ChatHistory>
       <div v-if="messages.length === 0" class="welcome-message">
         Welcome to EVA-VR chatBot, please start a conversation...
@@ -25,6 +26,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import Header from './Header.vue';
 import ChatHistory from './ChatHistory.vue';
 import MessageBubble from './Bubble.vue';
 import ChatInput from './InputMessage.vue';
@@ -171,12 +173,12 @@ const handleSend = async (messageText: string) => {
 </script>
 
 <style scoped>
-.chat-app { 
+.chat-app {
   width: 100%;
   height: 100vh;
   display: grid;
-  grid-template-rows: 1fr auto;
-  overflow: hidden; 
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
 }
 
 .welcome-message {

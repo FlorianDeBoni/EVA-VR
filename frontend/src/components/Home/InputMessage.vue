@@ -145,7 +145,7 @@ const handleSend = () => {
 .chat-input-container {
   width: 100%;
   padding: 16px;
-  background: #ffffff;
+  background: #1a1a2e;
   border-top: 1px solid #e5e7eb;
 }
 
