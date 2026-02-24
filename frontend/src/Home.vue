@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import ChatHistory from './components/ChatHistory.vue';
 import MessageBubble from './components/Bubble.vue';
 import ChatInput from './components/InputMessage.vue';
@@ -51,6 +51,16 @@ const currentImageB64 = ref<string | null>(null);
 
 const isStreaming = ref(false);
 let abortController: AbortController | null = null;
+let csrf_token = ref('');
+
+onMounted(async () => {
+  const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/csrf`, {
+                        method: "GET",
+                        credentials: "include",
+                    });
+  const res_json = await res.json();
+  csrf_token.value = res_json.csrfToken;
+});
 
 const getConversationHistory = () =>
   messages.value.map(msg => ({
@@ -83,7 +93,11 @@ const handleSend = async (messageText: string) => {
   try {
     const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      credentials: "include",
+      headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrf_token.value,
+      },
       body: JSON.stringify({
         message: messageText,
         history: getConversationHistory(),

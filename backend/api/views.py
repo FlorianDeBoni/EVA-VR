@@ -1,5 +1,5 @@
-from django.http import StreamingHttpResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.http import StreamingHttpResponse, JsonResponse
+from django.middleware.csrf import get_token
 from pathlib import Path
 import json
 import re
@@ -9,7 +9,24 @@ from .core.azureLangchainAgent import (
     send_chat_completion_stream,
 )
 
-@csrf_exempt
+def getCsrfToken(request):
+    token = get_token(request)
+    return JsonResponse({"csrfToken": token})
+
+def getPrompts(request):
+    if request.method != "GET":
+        return JsonResponse({"error": "Invalid request method."}, status=405)
+    try:
+        current_dir = Path(__file__).parent
+        prompt_path = current_dir / "core" / "prompts" / "gpt_prompt.md"
+
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            system_prompt = f.read()
+        return JsonResponse({"System prompt": system_prompt}, status=200)
+    
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
 def chat(request):
     # --------------------------------------------------
     # Parse JSON body

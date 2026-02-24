@@ -1,9 +1,6 @@
-Tool for Image generation
-Set up gemini api for image generation
-
-Frontend:
-- Input area
-- ChatHistory area
-- Clear ChatHistory button
-
-What extra features?
+- csrf
+- get prompt
+- Points de suspensions
+- Feedback
+- Header
+- Refractoring code for better maintenance
