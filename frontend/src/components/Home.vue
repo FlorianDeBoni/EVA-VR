@@ -25,10 +25,10 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import ChatHistory from './components/ChatHistory.vue';
-import MessageBubble from './components/Bubble.vue';
-import ChatInput from './components/InputMessage.vue';
-import LoadingDots from './components/LoadingDots.vue';
+import ChatHistory from './ChatHistory.vue';
+import MessageBubble from './Bubble.vue';
+import ChatInput from './InputMessage.vue';
+import LoadingDots from './LoadingDots.vue';
 
 interface ImagePayload {
   id: string;
