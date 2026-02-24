@@ -13,6 +13,10 @@
         :timestamp="msg.timestamp"
         :images="msg.images"
       />
+
+      <div v-if="isStreaming" class="loading-dots">
+        <LoadingDots />
+      </div>
     </ChatHistory>
 
     <ChatInput @send="handleSend" :disabled="isStreaming" />
@@ -24,6 +28,7 @@ import { onMounted, ref } from 'vue';
 import ChatHistory from './components/ChatHistory.vue';
 import MessageBubble from './components/Bubble.vue';
 import ChatInput from './components/InputMessage.vue';
+import LoadingDots from './components/LoadingDots.vue';
 
 interface ImagePayload {
   id: string;
@@ -179,5 +184,11 @@ const handleSend = async (messageText: string) => {
   font-size: 16px;
   text-align: center;
   padding: 20px;
+}
+
+.loading-dots {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0;
 }
 </style>

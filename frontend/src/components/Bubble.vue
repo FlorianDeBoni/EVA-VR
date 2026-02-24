@@ -26,12 +26,14 @@
     </div>
 
     <!-- Text -->
-    <div class="message-content">
-      {{ message }}
-    </div>
+    <div v-if="message.length > 0">
+      <div class="message-content">
+        {{ message }}
+      </div>
 
-    <div class="message-timestamp" v-if="timestamp">
-      {{ timestamp }}
+      <div class="message-timestamp" v-if="timestamp">
+        {{ timestamp }}
+      </div>
     </div>
   </div>
 </template>
