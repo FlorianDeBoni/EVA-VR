@@ -41,7 +41,7 @@ interface Message {
 }
 
 const messages = ref<Message[]>([{
-  text: "👋 Hello, and welcome to DOKK1 2045! Would you like to continue in English or Danish?",
+  text: "👋 Hello, and welcome to DOKK1 2045! Would you like to continue in English, Danish or French?",
   isUser: false,
   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
   images: []
