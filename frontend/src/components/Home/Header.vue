@@ -1,9 +1,20 @@
 <template>
   <header class="banner">
     <span class="project-name">EVA-VR ChatBot</span>
+    <RestartButton @restart="$emit('restart')" :isStreaming="isStreaming" />
     <span class="version">Last updated: 25th February 2026</span>
   </header>
 </template>
+
+<script setup lang="ts">
+import RestartButton from './RestartButton.vue';
+
+const emit = defineEmits(['restart'])
+
+defineProps<{
+  isStreaming: boolean;
+}>();
+</script>
 
 <style scoped>
 .banner {

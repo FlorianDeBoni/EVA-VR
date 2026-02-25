@@ -1,6 +1,6 @@
 <template>
   <div class="chat-app">
-    <Header />
+    <Header @restart="restart" :isStreaming="isStreaming"/>
     <ChatHistory>
       <div v-if="messages.length === 0" class="welcome-message">
         Welcome to EVA-VR chatBot, please start a conversation...
@@ -170,6 +170,10 @@ const handleSend = async (messageText: string) => {
     abortController = null;
   }
 };
+
+const restart = () => {
+  messages.value = [messages.value[0]];
+}
 </script>
 
 <style scoped>
