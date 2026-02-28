@@ -1,8 +1,15 @@
+import datetime
+
 from django.http import StreamingHttpResponse, JsonResponse
 from django.middleware.csrf import get_token
 from pathlib import Path
 import json
 import re
+from .core.utils.google_sheet import write_google_sheet
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+import os
+from dotenv import load_dotenv
 
 from .core.azureLangchainAgent import (
     maybe_generate_image,
@@ -133,3 +140,34 @@ def chat(request):
             "X-Accel-Buffering": "no",
         },
     )
+
+def add_log(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Invalid request method."}, status=405)
+    try:
+        load_dotenv()
+        credentials_json = eval(os.environ["GOOGLE_CREDENTIALS"])
+        
+        creds = Credentials.from_service_account_info(credentials_json)
+        service = build('sheets', 'v4', credentials=creds)
+        
+        sheet_id = os.environ["SHEET_ID"]
+        body = json.loads(request.body.decode("utf-8"))
+        values = [
+            [
+                datetime.datetime.now().isoformat(),
+                body.get("user_id", ""),
+                body.get("session_id", ""),
+                body.get("input", ""),
+                body.get("answer", ""),
+                body.get("iteration", ""),
+            ]
+        ]
+        write_google_sheet(service, sheet_id, "Logs", {"values": values})
+
+        return JsonResponse({"message": "Log entry added successfully."}, status=200)
+    
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON."}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

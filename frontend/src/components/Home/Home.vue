@@ -60,6 +60,10 @@ const isStreaming = ref(false);
 let abortController: AbortController | null = null;
 let csrf_token = ref('');
 
+let iteration = ref(0);
+let userID = ref(null);
+let sessionID = ref(crypto.randomUUID());
+
 onMounted(async () => {
   const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/csrf`, {
                         method: "GET",
@@ -67,6 +71,14 @@ onMounted(async () => {
                     });
   const res_json = await res.json();
   csrf_token.value = res_json.csrfToken;
+
+  let storedId = localStorage.getItem("userID");
+  if (!storedId) {
+    storedId = crypto.randomUUID();
+    localStorage.setItem("userID", storedId);
+  }
+
+  userID.value = storedId;
 });
 
 const getConversationHistory = () =>
@@ -168,10 +180,31 @@ const handleSend = async (messageText: string) => {
   } finally {
     isStreaming.value = false;
     abortController = null;
+    iteration.value += 1;
+
+    const body = new URLSearchParams();
+
+    fetch(`${import.meta.env.VITE_BACKEND_URL}/api/addLog`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': csrf_token.value,
+      },
+      body: JSON.stringify({
+        user_id: userID.value,
+        session_id: sessionID.value,
+        input: messageText,
+        answer: messages.value[botMessageIndex].text,
+        iteration: iteration.value.toString()
+      })
+    });
   }
 };
 
 const restart = () => {
+  iteration.value = 0;
+  sessionID.value = crypto.randomUUID();
   messages.value = [messages.value[0]];
 }
 </script>

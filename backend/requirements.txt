@@ -6,3 +6,6 @@ langchain
 langchain-openai
 python-decouple
 google-search-results
+dotenv
+google-api-python-client
+google-auth
