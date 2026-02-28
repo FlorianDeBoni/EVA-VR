@@ -1,7 +1,5 @@
 <template>
   <div class="feedback" ref="rootRef">
-    <span class="feedback__label">Helpful?</span>
-
     <button
       class="feedback__btn"
       :class="{ 'feedback__btn--active feedback__btn--up': pendingFeedback === 'up' }"
@@ -26,51 +24,65 @@
 
     <transition :name="popoverPlacement === 'top' ? 'pop-top' : 'pop-bottom'">
       <div
-        v-if="pendingFeedback"
+        v-if="pendingFeedback || justSubmitted"
         class="feedback__popover"
         :class="`feedback__popover--${popoverPlacement}`"
         ref="popoverRef"
       >
-        <!-- Arrow indicator -->
         <div class="feedback__popover-arrow" />
 
-        <div class="feedback__popover-header">
-          <span class="feedback__popover-title">
-            {{ pendingFeedback === 'up' ? '👍 Glad it helped!' : '👎 Sorry to hear that.' }}
-          </span>
-          <span v-if="submittedCount > 0" class="feedback__submitted-badge">
-            {{ submittedCount }} sent
-          </span>
-        </div>
-        <textarea
-          v-model="feedbackNote"
-          class="feedback__textarea"
-          placeholder="Any additional comments? (optional)"
-          rows="3"
-          autofocus
-        />
-        <div class="feedback__popover-actions">
-          <button class="feedback__cancel" @click="cancelFeedback">Cancel</button>
-          <button class="feedback__submit" @click="submitFeedback">Send feedback</button>
-        </div>
-      </div>
-    </transition>
+        <!-- Thanks state -->
+        <transition name="fade" mode="out-in">
+          <div v-if="justSubmitted" class="feedback__thanks">
+            <span class="feedback__thanks-icon">✓</span>
+            <span class="feedback__thanks-text">Thanks for your feedback!</span>
+          </div>
 
-    <transition name="fade">
-      <span v-if="justSubmitted" class="feedback__thanks">✓ Thanks!</span>
+          <!-- Form state -->
+          <div v-else class="feedback__form">
+            <div class="feedback__popover-header">
+              <span class="feedback__popover-title">
+                {{ pendingFeedback === 'up' ? '👍 Glad it helped!' : '👎 Sorry to hear that.' }}
+              </span>
+              <span v-if="submittedCount > 0" class="feedback__submitted-badge">
+                {{ submittedCount }} sent
+              </span>
+            </div>
+            <textarea
+              v-model="feedbackNote"
+              class="feedback__textarea"
+              placeholder="Any additional comments? (optional)"
+              rows="3"
+              autofocus
+            />
+            <div class="feedback__popover-actions">
+              <button class="feedback__cancel" @click="cancelFeedback">Cancel</button>
+              <button class="feedback__submit" @click="submitFeedback">Send feedback</button>
+            </div>
+          </div>
+        </transition>
+      </div>
     </transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, toRef } from 'vue'
 
 const emit = defineEmits<{
   (e: 'feedback', payload: { rating: 'up' | 'down'; note: string }): void
 }>()
 
-const POPOVER_HEIGHT = 180   // approximate rendered height in px
-const MARGIN        = 8      // gap between trigger and popover
+const props = defineProps<{
+  isStreaming?: boolean
+}>()
+
+watch(toRef(props, 'isStreaming'), (streaming) => {
+  if (streaming) cancelFeedback()
+})
+
+const POPOVER_HEIGHT = 180
+const MARGIN        = 8
 
 const pendingFeedback  = ref<'up' | 'down' | null>(null)
 const feedbackNote     = ref('')
@@ -80,35 +92,26 @@ const rootRef          = ref<HTMLElement | null>(null)
 const popoverRef       = ref<HTMLElement | null>(null)
 const popoverPlacement = ref<'bottom' | 'top'>('bottom')
 
-/** Re-measure whenever the popover is about to open */
 function measurePlacement() {
   if (!rootRef.value) return
   const rect       = rootRef.value.getBoundingClientRect()
   const spaceBelow = window.innerHeight - rect.bottom
   const spaceAbove = rect.top
-
-  // Prefer below; flip to above only if below is too tight AND above has more room
   popoverPlacement.value =
-    spaceBelow < POPOVER_HEIGHT + MARGIN && spaceAbove > spaceBelow
-      ? 'top'
-      : 'bottom'
+    spaceBelow < POPOVER_HEIGHT + MARGIN && spaceAbove > spaceBelow ? 'top' : 'bottom'
 }
 
 watch(pendingFeedback, async (val) => {
   if (val) {
     measurePlacement()
-    // Also re-check once the popover is rendered (actual height may differ)
     await nextTick()
     if (popoverRef.value && rootRef.value) {
       const actualHeight = popoverRef.value.offsetHeight
       const rect         = rootRef.value.getBoundingClientRect()
       const spaceBelow   = window.innerHeight - rect.bottom
       const spaceAbove   = rect.top
-      if (spaceBelow < actualHeight + MARGIN && spaceAbove > spaceBelow) {
-        popoverPlacement.value = 'top'
-      } else {
-        popoverPlacement.value = 'bottom'
-      }
+      popoverPlacement.value =
+        spaceBelow < actualHeight + MARGIN && spaceAbove > spaceBelow ? 'top' : 'bottom'
     }
   }
 })
@@ -127,15 +130,14 @@ function submitFeedback() {
   if (!pendingFeedback.value) return
   emit('feedback', { rating: pendingFeedback.value, note: feedbackNote.value })
   submittedCount.value++
-  pendingFeedback.value = null
   feedbackNote.value = ''
+  pendingFeedback.value = null
   justSubmitted.value = true
   setTimeout(() => { justSubmitted.value = false }, 2000)
 }
 </script>
 
 <style scoped>
-/* ── Wrapper ── */
 .feedback {
   position: relative;
   display: flex;
@@ -145,15 +147,6 @@ function submitFeedback() {
   width: fit-content;
 }
 
-.feedback__label {
-  font-size: 11px;
-  color: #9ca3af;
-  margin-right: 4px;
-  user-select: none;
-  letter-spacing: 0.01em;
-}
-
-/* ── Buttons ── */
 .feedback__btn {
   display: flex;
   align-items: center;
@@ -182,7 +175,7 @@ function submitFeedback() {
   display: block;
 }
 
-.feedback__btn--up.feedback__btn--active  { color: #1877f2; border-color: #bfdbfe; background: #eff6ff; }
+.feedback__btn--up.feedback__btn--active   { color: #1877f2; border-color: #bfdbfe; background: #eff6ff; }
 .feedback__btn--down.feedback__btn--active { color: #ef4444; border-color: #fecaca; background: #fef2f2; }
 
 .feedback__btn--active .thumb-icon {
@@ -203,34 +196,23 @@ function submitFeedback() {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.12);
   padding: 14px;
   z-index: 50;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
-/* Placement: below the trigger */
-.feedback__popover--bottom {
-  top: calc(100% + 8px);
-}
-
-/* Placement: above the trigger */
-.feedback__popover--top {
-  bottom: calc(100% + 8px);
-}
+.feedback__popover--bottom { top: calc(100% + 8px); }
+.feedback__popover--top    { bottom: calc(100% + 8px); }
 
 /* ── Arrow ── */
 .feedback__popover-arrow {
   position: absolute;
-  right: 22px;       /* aligns roughly under the thumb buttons */
+  right: 22px;
   width: 10px;
   height: 10px;
   background: #fff;
   border: 1px solid #e5e7eb;
   transform: rotate(45deg);
-  /* hide the part of the border that overlaps the popover body */
 }
 
 .feedback__popover--bottom .feedback__popover-arrow {
@@ -245,7 +227,33 @@ function submitFeedback() {
   border-left-color: transparent;
 }
 
-/* ── Popover internals ── */
+/* ── Thanks ── */
+.feedback__thanks {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.feedback__thanks-icon {
+  font-size: 18px;
+  color: #10b981;
+}
+
+.feedback__thanks-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+/* ── Form ── */
+.feedback__form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .feedback__popover-header {
   display: flex;
   align-items: center;
@@ -309,44 +317,24 @@ function submitFeedback() {
 .feedback__submit:hover  { background: #2563eb; }
 .feedback__submit:active { transform: scale(0.97); }
 
-/* ── Thanks flash ── */
-.feedback__thanks {
-  font-size: 11px;
-  color: #10b981;
-  font-weight: 500;
-  margin-left: 4px;
-}
-
 /* ── Transitions ── */
-
-/* Popover opening downward */
-.pop-bottom-enter-active {
-  animation: popoverInBottom 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.pop-bottom-leave-active {
-  animation: popoverInBottom 0.12s ease-in reverse;
-}
+.pop-bottom-enter-active { animation: popoverInBottom 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.pop-bottom-leave-active { animation: popoverInBottom 0.12s ease-in reverse; }
 
 @keyframes popoverInBottom {
   from { opacity: 0; transform: scale(0.92) translateY(-6px); }
-  to   { opacity: 1; transform: scale(1)    translateY(0);    }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
 }
 
-/* Popover opening upward */
-.pop-top-enter-active {
-  animation: popoverInTop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.pop-top-leave-active {
-  animation: popoverInTop 0.12s ease-in reverse;
-}
+.pop-top-enter-active { animation: popoverInTop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.pop-top-leave-active { animation: popoverInTop 0.12s ease-in reverse; }
 
 @keyframes popoverInTop {
   from { opacity: 0; transform: scale(0.92) translateY(6px); }
-  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
 }
 
-/* Thanks fade */
 .fade-enter-active { transition: opacity 0.2s ease; }
-.fade-leave-active { transition: opacity 0.4s ease; }
+.fade-leave-active { transition: opacity 0.15s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

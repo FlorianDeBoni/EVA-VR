@@ -21,17 +21,27 @@
 
     <!-- Text -->
     <div v-if="message.length > 0" class="message-body">
-      <div class="message-content">{{ message }}</div>
+      <div class="message-content">
+        <div class="message-text" v-html="renderedMessage" />
+        <div class="message-footer">
+          <div class="message-timestamp" v-if="timestamp">{{ timestamp }}</div>
+        </div>
+      </div>
 
-      <div class="message-footer">
-        <div class="message-timestamp" v-if="timestamp">{{ timestamp }}</div>
-        <Feedback @feedback="emit('feedback', $event)" />
+      <div
+        v-if="displayedFeedback"
+        class="feedback-wrapper"
+        :class="{ 'feedback-wrapper--disabled': isStreaming }"
+      >
+        <Feedback @feedback="onFeedback" :isStreaming="isStreaming" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { marked } from 'marked'
 import Feedback from './Feedback.vue'
 
 interface ImagePayload {
@@ -42,16 +52,29 @@ interface ImagePayload {
   source?: string
 }
 
-defineProps<{
+const props = defineProps<{
   message: string
   isUser?: boolean
   timestamp?: string
   images?: ImagePayload[]
+  isStreaming?: boolean
+  displayedFeedback?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'feedback', payload: { rating: 'up' | 'down'; note: string }): void
 }>()
+
+const justSubmitted = ref(false)
+
+function onFeedback(payload: { rating: 'up' | 'down'; note: string }) {
+  emit('feedback', payload)
+  justSubmitted.value = true
+}
+
+const renderedMessage = computed(() =>
+  marked(props.message, { breaks: true, gfm: true })
+)
 </script>
 
 <style scoped>
@@ -60,7 +83,6 @@ const emit = defineEmits<{
   flex-direction: column;
   max-width: 70%;
   animation: slideIn 0.3s ease-out;
-  /* Let the absolutely-positioned popover escape the bubble bounds */
   overflow: visible;
 }
 
@@ -83,16 +105,17 @@ const emit = defineEmits<{
 .message-body {
   display: flex;
   flex-direction: column;
-  /* Same: don't clip the popover */
   overflow: visible;
 }
 
 .message-content {
-  white-space: pre-wrap;
+  display: flex;
+  flex-direction: column;
   padding: 12px 16px;
   border-radius: 12px;
   font-size: 15px;
   line-height: 1.5;
+  overflow: visible;
 }
 
 .user-message .message-content {
@@ -107,23 +130,99 @@ const emit = defineEmits<{
   border-bottom-left-radius: 4px;
 }
 
+/* ── Markdown prose ── */
+.message-text {
+  text-align: justify;
+  hyphens: auto;
+}
+
+.message-text :deep(p) { margin: 0 0 0.5em; }
+.message-text :deep(p:last-child) { margin-bottom: 0; }
+
+.message-text :deep(h1),
+.message-text :deep(h2),
+.message-text :deep(h3),
+.message-text :deep(h4) {
+  font-weight: 600;
+  margin: 0.75em 0 0.25em;
+  line-height: 1.3;
+}
+.message-text :deep(h1) { font-size: 1.2em; }
+.message-text :deep(h2) { font-size: 1.1em; }
+.message-text :deep(h3) { font-size: 1.0em; }
+
+.message-text :deep(ul),
+.message-text :deep(ol) {
+  padding-left: 1.4em;
+  margin: 0.4em 0;
+}
+.message-text :deep(li) { margin: 0.2em 0; }
+
+.message-text :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.user-message .message-text :deep(code) { background: rgba(255,255,255,0.2); }
+.bot-message  .message-text :deep(code) { background: #e5e7eb; color: #1f2937; }
+
+.message-text :deep(pre) {
+  border-radius: 8px;
+  padding: 10px 14px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+.user-message .message-text :deep(pre) { background: rgba(255,255,255,0.15); }
+.bot-message  .message-text :deep(pre) { background: #e5e7eb; }
+.message-text :deep(pre code) { background: none; padding: 0; }
+
+.message-text :deep(blockquote) {
+  margin: 0.5em 0;
+  padding-left: 0.75em;
+  border-left: 3px solid currentColor;
+  opacity: 0.75;
+}
+
+.message-text :deep(a) { text-decoration: underline; text-underline-offset: 2px; }
+.user-message .message-text :deep(a) { color: #bfdbfe; }
+.bot-message  .message-text :deep(a) { color: #2563eb; }
+
+.message-text :deep(strong) { font-weight: 600; }
+.message-text :deep(em)     { font-style: italic; }
+
+.message-text :deep(hr) {
+  border: none;
+  border-top: 1px solid currentColor;
+  opacity: 0.2;
+  margin: 0.75em 0;
+}
+
+/* ── Footer ── */
 .message-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  /* Fixed height keeps timestamp and feedback buttons vertically stable */
-  min-height: 28px;
-  margin-top: 4px;
-  /* Allow the popover to overflow downward without disrupting layout */
-  overflow: visible;
-  position: relative;
+  margin-top: 6px;
+  min-height: 18px;
 }
 
 .message-timestamp {
   font-size: 11px;
-  color: #9ca3af;
-  /* Prevent timestamp from being pushed around when feedback badge appears */
   flex-shrink: 0;
+}
+.user-message .message-timestamp { color: rgba(255,255,255,0.65); }
+.bot-message  .message-timestamp { color: #9ca3af; }
+
+/* ── Feedback wrapper ── */
+.feedback-wrapper { transition: opacity 0.2s ease; }
+.feedback-wrapper--disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  filter: grayscale(1);
+  cursor: not-allowed;
 }
 
 @keyframes slideIn {

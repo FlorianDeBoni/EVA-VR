@@ -5,7 +5,7 @@ from django.middleware.csrf import get_token
 from pathlib import Path
 import json
 import re
-from .core.utils.google_sheet import write_google_sheet
+from .core.utils.google_sheet import add_feedback_sheet, write_google_sheet
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 import os
@@ -170,4 +170,35 @@ def add_log(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON."}, status=400)
     except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    
+def add_feedback(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Invalid request method."}, status=405)
+    try:
+        load_dotenv()
+        credentials_json = eval(os.environ["GOOGLE_CREDENTIALS"])
+        
+        creds = Credentials.from_service_account_info(credentials_json)
+        service = build('sheets', 'v4', credentials=creds)
+        
+        sheet_id = os.environ["SHEET_ID"]
+        body = json.loads(request.body.decode("utf-8"))
+        print(f"Received feedback: session_id={body.get('session_id', '')}, iteration={body.get('iteration', '')}, feedback={body.get('feedback', '')}")
+        add_feedback_sheet(
+            service, 
+            sheet_id, 
+            "Logs", 
+            session_id=body.get('session_id', ''),
+            iteration=body.get('iteration', ''),
+            feedback=body.get('feedback', ''),
+        )
+
+        return JsonResponse({"message": "Feedback entry added successfully."}, status=200)
+    
+    except json.JSONDecodeError:
+        print("Invalid JSON received in add_feedback")
+        return JsonResponse({"error": "Invalid JSON."}, status=400)
+    except Exception as e:
+        print(f"Error adding feedback: {e}")
         return JsonResponse({"error": str(e)}, status=500)

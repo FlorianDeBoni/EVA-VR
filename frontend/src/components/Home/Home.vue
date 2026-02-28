@@ -13,6 +13,9 @@
         :isUser="msg.isUser"
         :timestamp="msg.timestamp"
         :images="msg.images"
+        :isStreaming="isStreaming"
+        :displayedFeedback="!msg.isUser && index !== 0"
+        @feedback="handleFeedback(index, $event)"
       />
 
       <div v-if="isStreaming" class="loading-dots">
@@ -182,8 +185,6 @@ const handleSend = async (messageText: string) => {
     abortController = null;
     iteration.value += 1;
 
-    const body = new URLSearchParams();
-
     fetch(`${import.meta.env.VITE_BACKEND_URL}/api/addLog`, {
       method: "POST",
       credentials: "include",
@@ -207,6 +208,24 @@ const restart = () => {
   sessionID.value = crypto.randomUUID();
   messages.value = [messages.value[0]];
 }
+
+const handleFeedback = (index: number, feedback: { rating: 'up' | 'down'; note: string }) => {
+  const rate = feedback.rating === 'up' ? "positive" : "negative";
+  const content = `This is a ${rate} feedback message: \n${feedback.note}`;
+  fetch(`${import.meta.env.VITE_BACKEND_URL}/api/addFeedback`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrf_token.value,
+    },
+    body: JSON.stringify({
+      session_id: sessionID.value,
+      iteration: Math.floor(index / 2).toString(),
+      feedback: content,
+    })
+  });
+};
 </script>
 
 <style scoped>
