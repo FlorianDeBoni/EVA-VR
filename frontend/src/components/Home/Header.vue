@@ -2,7 +2,7 @@
   <header class="banner">
     <span class="project-name">EVA-VR ChatBot</span>
     <RestartButton @restart="$emit('restart')" :isStreaming="isStreaming" />
-    <span class="version">Last updated: 28th February 2026</span>
+    <span class="version">Last updated: 8th April 2026</span>
   </header>
 </template>
 

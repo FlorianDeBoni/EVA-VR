@@ -1,5 +1,4 @@
-- Feedback
-- Header with Restart button
-- Render markdown in bubbles
-- Scaling font and family
+- Scaling font
 - logger
+- Dynamic webhistory
+- Django DB?
