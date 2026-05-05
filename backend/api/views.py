@@ -202,3 +202,25 @@ def add_feedback(request):
     except Exception as e:
         print(f"Error adding feedback: {e}")
         return JsonResponse({"error": str(e)}, status=500)
+    
+def update_prompt(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Invalid request method."}, status=405)
+    try:
+        body = json.loads(request.body.decode("utf-8"))
+        new_prompt = body.get("prompt")
+        if not new_prompt:
+            return JsonResponse({"error": "No prompt provided."}, status=400)
+
+        current_dir = Path(__file__).parent
+        prompt_path = current_dir / "core" / "prompts" / "gpt_prompt.md"
+
+        with open(prompt_path, "w", encoding="utf-8") as f:
+            f.write(new_prompt)
+
+        return JsonResponse({"message": "Prompt updated successfully."}, status=200)
+    
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON."}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

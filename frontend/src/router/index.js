@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../components/Home/Home.vue'
 import Prompt from '../components/Prompt/Prompt.vue'
+import EditingHome from '@/components/Editing/EditingHome.vue'
 
 const routes = [
   { 
@@ -12,6 +13,11 @@ const routes = [
     component: Prompt,
     name: 'Prompt', 
   },
+  {
+    path: '/editing',
+    component: EditingHome,
+    name: 'Editing',
+  }
 ]
 
 const router = createRouter({
