@@ -11,6 +11,25 @@
         rows="1"
         class="chat-input"
       ></textarea>
+       <button
+        @click="handleSend"
+        :disabled="!message.trim() || disabled"
+        class="send-button"
+        aria-label="Send message"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="send-icon"
+        >
+          <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+        </svg>
+      </button>
     </div>
   </div>
 </template>
@@ -126,15 +145,17 @@ const handleSend = () => {
 <style scoped>
 .chat-input-container {
   width: 100%;
+  padding: 16px;
+  background: #1a1a2e;
+  border-top: 1px solid #e5e7eb;
 }
 
 .input-wrapper {
-  width: 100%;
-
   display: flex;
   align-items: flex-end;
   gap: 12px;
-
+  max-width: 800px;
+  margin: 0 auto;
   padding: 12px 16px;
   background: #f9fafb;
   border: 2px solid #e5e7eb;
@@ -149,7 +170,7 @@ const handleSend = () => {
 }
 
 .chat-input {
-  width: 100%;
+  flex: 1;
   border: none;
   outline: none;
   background: transparent;
@@ -164,6 +185,7 @@ const handleSend = () => {
   scrollbar-color: #cbd5e1 transparent;
   padding: 0;
   margin: 0;
+  align-self: center;
 }
 
 .chat-input::-webkit-scrollbar {
@@ -192,8 +214,40 @@ const handleSend = () => {
   color: #9ca3af;
 }
 
-.chat-input:disabled {
+.send-button {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: #3b82f6;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  align-self: flex-end;
+  margin-bottom: 0;
+}
+
+.send-button:hover:not(:disabled) {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.send-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.send-button:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
   cursor: not-allowed;
-  color: #6b7280;
+}
+
+.send-icon {
+  width: 20px;
+  height: 20px;
 }
 </style>
