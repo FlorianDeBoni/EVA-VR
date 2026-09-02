@@ -89,12 +89,12 @@ def maybe_generate_image(history: List[Dict[str, Any]], reference_image: str = "
                     "content": json.dumps({
                         "instruction": (
                             "IMAGE SELECTION TASK.\n"
-                            "Choose EXACTLY ONE image ID from the list below.\n"
+                            "Choose up to THREE distinct image IDs from the list below.\n"
                             "If none are suitable, respond with NO_SUITABLE_IMAGE."
                         ),
                         "response_format": (
                             "Respond with ONLY one of:\n"
-                            "CHOSEN_IMAGE_ID: <id>\n"
+                            "CHOSEN_IMAGE_IDS: <id>, <id>, <id>\n"
                             "NO_SUITABLE_IMAGE"
                         ),
                         "candidates": candidates
@@ -125,8 +125,9 @@ def maybe_generate_image(history: List[Dict[str, Any]], reference_image: str = "
         "role": "system",
         "content": (
             "IMAGE SELECTION MODE.\n\n"
+            "Select 2 to 4 visually distinct reference images across all candidate lists.\n"
             "Respond with ONLY one of the following:\n"
-            "- CHOSEN_IMAGE_ID: <id>\n"
+            "- CHOSEN_IMAGE_IDS: <id>, <id>, ...\n"
             "- NO_SUITABLE_IMAGE\n\n"
             "Do NOT include explanations or descriptions."
         )
@@ -145,16 +146,24 @@ def maybe_generate_image(history: List[Dict[str, Any]], reference_image: str = "
     # ------------------------------------------------------------------
     # 4️⃣ Parse selection
     # ------------------------------------------------------------------
-    if content.startswith("CHOSEN_IMAGE_ID:"):
-        chosen_id = content.replace("CHOSEN_IMAGE_ID:", "").strip()
+    if content.startswith("CHOSEN_IMAGE_IDS:"):
+        chosen_ids = [
+            image_id.strip()
+            for image_id in content.replace("CHOSEN_IMAGE_IDS:", "", 1).split(",")
+            if image_id.strip()
+        ][:4]
 
-        for candidates in reference_candidates_by_call.values():
-            for img in candidates:
-                if img.get("id") == chosen_id:
-                    chosen_reference_images.append(img)
-                    break
-            if chosen_reference_images:
-                break
+        candidates_by_id = {
+            img.get("id"): img
+            for candidates in reference_candidates_by_call.values()
+            for img in candidates
+            if img.get("id")
+        }
+
+        for chosen_id in chosen_ids:
+            image = candidates_by_id.get(chosen_id)
+            if image and image not in chosen_reference_images:
+                chosen_reference_images.append(image)
 
     elif content.upper() == "NO_SUITABLE_IMAGE":
         # Prevent phantom image narration

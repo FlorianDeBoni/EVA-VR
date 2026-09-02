@@ -23,7 +23,11 @@
       </div>
     </ChatHistory>
 
-    <ChatInput @send="handleSend" :disabled="isStreaming" />
+    <ChatInput
+      @send="handleSend"
+      :disabled="isStreaming"
+      :recognitionLanguage="sessionLanguage"
+    />
   </div>
 </template>
 
@@ -58,6 +62,13 @@ const messages = ref<Message[]>([{
 }]);
 
 const currentImageB64 = ref<string | null>(null);
+const getDefaultRecognitionLanguage = () => {
+  const browserLanguage = navigator.language.toLocaleLowerCase();
+  if (browserLanguage.startsWith('da')) return 'da-DK';
+  if (browserLanguage.startsWith('fr')) return 'fr-FR';
+  return 'en-US';
+};
+const sessionLanguage = ref(getDefaultRecognitionLanguage());
 
 const isStreaming = ref(false);
 let abortController: AbortController | null = null;
@@ -92,6 +103,18 @@ const getConversationHistory = () =>
   }));
 
 const handleSend = async (messageText: string) => {
+  if (iteration.value === 0) {
+    const languageChoice = messageText.trim().toLocaleLowerCase();
+
+    if (/dansk|danish|danois/.test(languageChoice)) {
+      sessionLanguage.value = 'da-DK';
+    } else if (/fran[cç]ais|french|fransk/.test(languageChoice)) {
+      sessionLanguage.value = 'fr-FR';
+    } else if (/english|engelsk|anglais/.test(languageChoice)) {
+      sessionLanguage.value = 'en-US';
+    }
+  }
+
   messages.value.push({
     text: messageText,
     isUser: true,
@@ -211,6 +234,7 @@ const handleSend = async (messageText: string) => {
 const restart = () => {
   iteration.value = 0;
   currentStep.value = 1;
+  sessionLanguage.value = getDefaultRecognitionLanguage();
   sessionID.value = crypto.randomUUID();
   messages.value = [messages.value[0]];
 }

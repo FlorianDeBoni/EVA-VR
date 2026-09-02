@@ -1,16 +1,51 @@
 <template>
   <div class="chat-input-container">
-    <div class="input-wrapper">
+    <div class="input-wrapper" :class="{ 'input-wrapper--listening': isListening }">
       <textarea
         ref="textareaRef"
         v-model="message"
         @input="adjustHeight"
         @keydown="handleEnter"
         :disabled="disabled"
-        placeholder="Type your message... (Enter to send, Ctrl+Enter for newline)"
+        :placeholder="isListening ? 'Listening… Speak now' : 'Type or use the microphone…'"
         rows="1"
         class="chat-input"
       ></textarea>
+      <button
+        v-if="speechRecognitionSupported"
+        type="button"
+        class="microphone-button"
+        :class="{ 'microphone-button--listening': isListening }"
+        :disabled="disabled"
+        :aria-label="isListening ? 'Stop voice input' : 'Start voice input'"
+        :aria-pressed="isListening"
+        :title="isListening ? 'Stop recording' : 'Start voice input'"
+        @click="toggleListening"
+      >
+        <svg
+          v-if="!isListening"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M12 15.5a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 1 0-7 0v6a3.5 3.5 0 0 0 3.5 3.5Z" />
+          <path d="M5.5 11.5v.5a6.5 6.5 0 0 0 13 0v-.5M12 18.5V22M9 22h6" />
+        </svg>
+        <svg
+          v-else
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+          class="stop-icon"
+        >
+          <rect x="7" y="7" width="10" height="10" rx="1.5" />
+        </svg>
+        <span class="microphone-button__pulse" />
+      </button>
        <button
         @click="handleSend"
         :disabled="!message.trim() || disabled"
@@ -35,14 +70,41 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted, watch } from 'vue';
+import { ref, nextTick, onBeforeUnmount, onMounted, watch } from 'vue';
+
+interface SpeechRecognitionResultLike {
+  isFinal: boolean;
+  0: { transcript: string };
+}
+
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 interface Props {
   disabled?: boolean;
+  recognitionLanguage?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  disabled: false
+  disabled: false,
+  recognitionLanguage: 'en-US'
 });
 
 const emit = defineEmits<{
@@ -51,11 +113,56 @@ const emit = defineEmits<{
 
 const message = ref('');
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const isListening = ref(false);
+const speechRecognitionSupported = ref(false);
+let recognition: SpeechRecognitionLike | null = null;
+let messageBeforeListening = '';
+let finalTranscript = '';
 
 const maxLines = 4;
 const lineHeight = 24;
 
 onMounted(() => {
+  const speechWindow = window as typeof window & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+  const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+  speechRecognitionSupported.value = Boolean(Recognition);
+
+  if (Recognition) {
+    recognition = new Recognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => {
+      isListening.value = true;
+    };
+
+    recognition.onresult = (event) => {
+      let interimTranscript = '';
+
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        if (result.isFinal) finalTranscript += result[0].transcript;
+        else interimTranscript += result[0].transcript;
+      }
+
+      const separator = messageBeforeListening && (finalTranscript || interimTranscript) ? ' ' : '';
+      message.value = `${messageBeforeListening}${separator}${finalTranscript}${interimTranscript}`;
+      adjustHeight();
+    };
+
+    recognition.onerror = () => {
+      isListening.value = false;
+    };
+
+    recognition.onend = () => {
+      isListening.value = false;
+      nextTick(() => textareaRef.value?.focus());
+    };
+  }
+
   nextTick(() => {
     textareaRef.value?.focus();
   });
@@ -68,9 +175,38 @@ watch(
       nextTick(() => {
         textareaRef.value?.focus();
       });
+    } else if (isListening.value) {
+      recognition?.stop();
     }
   }
 );
+
+watch(
+  () => props.recognitionLanguage,
+  (language) => {
+    if (recognition) recognition.lang = language;
+  },
+  { immediate: true }
+);
+
+onBeforeUnmount(() => recognition?.abort());
+
+const toggleListening = () => {
+  if (!recognition || props.disabled) return;
+
+  if (isListening.value) {
+    recognition.stop();
+    return;
+  }
+
+  messageBeforeListening = message.value.trimEnd();
+  finalTranscript = '';
+  recognition.lang = props.recognitionLanguage;
+
+  try {
+    recognition.start();
+  } catch {}
+};
 
 const adjustHeight = () => {
   nextTick(() => {
@@ -129,6 +265,8 @@ const handleEnter = (event: KeyboardEvent) => {
 const handleSend = () => {
   if (!message.value.trim() || props.disabled) return;
 
+  if (isListening.value) recognition?.stop();
+
   emit('send', message.value);
   message.value = '';
 
@@ -167,6 +305,11 @@ const handleSend = () => {
 .input-wrapper:focus-within {
   border-color: #3b82f6;
   background: #ffffff;
+}
+
+.input-wrapper--listening {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
 }
 
 .chat-input {
@@ -214,7 +357,8 @@ const handleSend = () => {
   color: #9ca3af;
 }
 
-.send-button {
+.send-button,
+.microphone-button {
   flex-shrink: 0;
   width: 40px;
   height: 40px;
@@ -229,6 +373,68 @@ const handleSend = () => {
   transition: all 0.2s;
   align-self: flex-end;
   margin-bottom: 0;
+}
+
+.microphone-button {
+  position: relative;
+  overflow: visible;
+  border: 1px solid #c7d2fe;
+  border-radius: 50%;
+  background: #eef2ff;
+  color: #283593;
+}
+
+.microphone-button:hover:not(:disabled) {
+  background: #dfe5ff;
+}
+
+.microphone-button--listening {
+  border-color: #dc2626;
+  border-radius: 8px;
+  background: #dc2626;
+  color: #ffffff;
+  transform: scale(1.04);
+}
+
+.microphone-button--listening:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.microphone-button svg {
+  width: 21px;
+  height: 21px;
+  display: block;
+  pointer-events: none;
+}
+
+.microphone-button .stop-icon {
+  width: 24px;
+  height: 24px;
+  stroke: none;
+}
+
+.microphone-button__pulse {
+  display: none;
+  position: absolute;
+  inset: -4px;
+  border: 2px solid #dc2626;
+  border-radius: 11px;
+}
+
+.microphone-button--listening .microphone-button__pulse {
+  display: block;
+  animation: microphone-pulse 1.4s ease-out infinite;
+}
+
+.microphone-button:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+@keyframes microphone-pulse {
+  from { opacity: 0.7; transform: scale(0.94); }
+  to { opacity: 0; transform: scale(1.16); }
 }
 
 .send-button:hover:not(:disabled) {
