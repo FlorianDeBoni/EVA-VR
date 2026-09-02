@@ -1,6 +1,6 @@
 <template>
   <div class="chat-app">
-    <Header @restart="restart" :isStreaming="isStreaming"/>
+    <Header @restart="restart" :isStreaming="isStreaming" :currentStep="currentStep" />
     <ChatHistory>
       <div v-if="messages.length === 0" class="welcome-message">
         Welcome to EVA-VR chatBot, please start a conversation...
@@ -64,6 +64,7 @@ let abortController: AbortController | null = null;
 let csrf_token = ref('');
 
 let iteration = ref(0);
+const currentStep = ref(1);
 let userID = ref(null);
 let sessionID = ref(crypto.randomUUID());
 
@@ -157,6 +158,10 @@ const handleSend = async (messageText: string) => {
 
         const parsed = JSON.parse(data);
 
+        if (parsed.type === 'progress' && Number.isInteger(parsed.step)) {
+          currentStep.value = Math.min(Math.max(parsed.step, 1), 5);
+        }
+
         if (parsed.type === 'image') {
           messages.value[botMessageIndex].images.push({
             id: parsed.id,
@@ -205,6 +210,7 @@ const handleSend = async (messageText: string) => {
 
 const restart = () => {
   iteration.value = 0;
+  currentStep.value = 1;
   sessionID.value = crypto.randomUUID();
   messages.value = [messages.value[0]];
 }

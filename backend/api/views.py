@@ -121,12 +121,41 @@ def chat(request):
         def strip_image_urls(text: str) -> str:
             return re.sub(r'https?://\S+\.(jpg|jpeg|png|webp)\S*', '', text)
 
+        progress_buffer = ""
+        progress_resolved = False
+
         for chunk in send_chat_completion_stream(updated_history):
             clean = strip_image_urls(chunk)
+
+            if not progress_resolved:
+                progress_buffer += clean
+                marker = re.match(r'^\s*\[\[SESSION_STEP:([1-5])\]\]\s*', progress_buffer)
+
+                if marker:
+                    step = int(marker.group(1))
+                    progress_payload = json.dumps({"type": "progress", "step": step})
+                    yield f"data: {progress_payload}\n\n"
+                    clean = progress_buffer[marker.end():]
+                    progress_buffer = ""
+                    progress_resolved = True
+                elif len(progress_buffer) < 32 and "\n" not in progress_buffer:
+                    continue
+                else:
+                    clean = progress_buffer
+                    progress_buffer = ""
+                    progress_resolved = True
+
+            if not clean:
+                continue
+
             payload = json.dumps({
                 "type": "text",
                 "delta": clean
             })
+            yield f"data: {payload}\n\n"
+
+        if progress_buffer:
+            payload = json.dumps({"type": "text", "delta": progress_buffer})
             yield f"data: {payload}\n\n"
 
         # 5️⃣ End of stream
