@@ -1,0 +1,19 @@
+[project]
+name = "eva-vr"
+version = "0.1.0"
+description = "Step 1 chatbot for eva-vr"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "langgraph>=1.2.18",
+]
+
+[project.scripts]
+eva-vr = "eva_vr:main"
+
+[build-system]
+requires = ["uv_build>=0.12.21,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+package = false
