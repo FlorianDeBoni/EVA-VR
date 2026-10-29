@@ -10,3 +10,5 @@ coverage.xml
 .coverage
 .ruff_cache/
 .pytest_cache/
+
+*.ipynb
