@@ -1,0 +1,12 @@
+version: "3"
+
+tasks:
+  test:
+    desc: Run the test suite with a coverage report
+    cmds:
+      - >-
+        uv run pytest
+        --cov=backend/src
+        --cov-report=term-missing
+        --cov-report=html:htmlcov
+        --cov-report=xml:coverage.xml

@@ -2,3 +2,11 @@
 .env.backend
 
 __pycache__/
+.vscode/
+
+# coverage
+htmlcov/
+coverage.xml
+.coverage
+.ruff_cache/
+.pytest_cache/
