@@ -7,6 +7,7 @@ class EnvKeyName(StrEnum):
 
     KEY_GEMINI_KEY = "GEMINI_KEY"
     KEY_SERPAPI_KEY = "SERPAPI_KEY"
+    KEY_API_PORT = "API_PORT"
 
 
 class EnvManager:

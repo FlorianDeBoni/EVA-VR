@@ -1,6 +1,12 @@
 version: "3"
 
+dotenv: [".env.backend"]
+
 tasks:
+  dev:backend:
+    desc: Start the API with auto-reload
+    cmds:
+      - uv run uvicorn backend.api.main:app --reload --port ${API_PORT:-8000}
   test:
     desc: Run the test suite with a coverage report
     cmds:
