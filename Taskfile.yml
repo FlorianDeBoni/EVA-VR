@@ -2,11 +2,14 @@ version: "3"
 
 dotenv: [".env.backend"]
 
+# Docker tasks (dev:backend, dev:langfuse, docker:stop, docker:delete) live in infrastructure/
+includes:
+  infrastructure:
+    taskfile: infrastructure/Taskfile.yml
+    dir: infrastructure
+    flatten: true
+
 tasks:
-  dev:backend:
-    desc: Start the API with auto-reload
-    cmds:
-      - uv run uvicorn backend.api.main:app --reload --port ${API_PORT:-8000}
   test:
     desc: Run the test suite with a coverage report
     cmds:

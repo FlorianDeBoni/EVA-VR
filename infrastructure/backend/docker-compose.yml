@@ -1,0 +1,15 @@
+# Backend API for local development, with auto-reload on source changes.
+# Settings come from .env.backend at the repository root (API_PORT, OpenAI keys, ...).
+name: eva-vr-backend
+
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: infrastructure/backend/Dockerfile
+    env_file: ../../.env.backend
+    ports:
+      - "${API_PORT:?}:${API_PORT:?}"
+    command: uvicorn backend.api.main:app --host 0.0.0.0 --port ${API_PORT:?} --reload --reload-dir backend
+    volumes:
+      - ../../backend:/app/backend

@@ -1,0 +1,27 @@
+version: "3"
+
+# Included from the root Taskfile (flattened), so task names stay `dev:backend`, `dev:langfuse`, etc.
+# `dotenv` is not supported in included Taskfiles: variables are passed with --env-file.
+vars:
+  LANGFUSE_COMPOSE: docker compose --env-file .env.infrastructure -f langfuse/docker-compose.yml
+  BACKEND_COMPOSE: docker compose --env-file ../.env.backend -f backend/docker-compose.yml
+
+tasks:
+  dev:backend:
+    desc: Build and start the API in Docker (detached) with auto-reload; stop with docker:stop
+    cmds:
+      - "{{.BACKEND_COMPOSE}} up --build -d"
+  dev:langfuse:
+    desc: Start the local Langfuse service (UI at LANGFUSE_URL, see .env.infrastructure)
+    cmds:
+      - "{{.LANGFUSE_COMPOSE}} up -d"
+  docker:stop:
+    desc: Stop the Docker services (backend, Langfuse) without removing them
+    cmds:
+      - "{{.BACKEND_COMPOSE}} stop"
+      - "{{.LANGFUSE_COMPOSE}} stop"
+  docker:delete:
+    desc: Stop and delete the Docker services, including their volumes (Langfuse data is lost)
+    cmds:
+      - "{{.BACKEND_COMPOSE}} down --volumes"
+      - "{{.LANGFUSE_COMPOSE}} down --volumes"

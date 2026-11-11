@@ -1,0 +1,14 @@
+.git
+.venv
+.vscode
+**/__pycache__
+.pytest_cache
+.ruff_cache
+htmlcov
+coverage.xml
+.coverage
+*.ipynb
+
+# Secrets and local settings never go into an image
+.env*
+infrastructure

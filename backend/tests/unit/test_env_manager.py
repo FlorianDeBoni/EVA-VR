@@ -1,28 +1,41 @@
 import pytest
-from settings.envManager import EnvKeyName, EnvManager
+
+from backend.src.settings.envManager import EnvKeyName, EnvManager
 
 
 def test_returns_value_when_set(monkeypatch):
-    monkeypatch.setenv("GEMINI_KEY", "abc123")
-    assert EnvManager.get_env_variable(EnvKeyName.KEY_GEMINI_KEY) == "abc123"
+    monkeypatch.setenv("OPENAI_API_KEY", "abc123")
+    assert EnvManager.get_env_variable(EnvKeyName.KEY_OPENAI_API_KEY) == "abc123"
 
 
 def test_returns_empty_string_when_set_empty(monkeypatch):
-    monkeypatch.setenv("SERPAPI_KEY", "")
-    assert EnvManager.get_env_variable(EnvKeyName.KEY_SERPAPI_KEY) == ""
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    assert EnvManager.get_env_variable(EnvKeyName.KEY_OPENAI_API_KEY) == ""
 
 
 def test_raises_key_error_when_missing(monkeypatch):
-    monkeypatch.delenv("GEMINI_KEY", raising=False)
-    with pytest.raises(KeyError, match="GEMINI_KEY"):
-        EnvManager.get_env_variable(EnvKeyName.KEY_GEMINI_KEY)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with pytest.raises(KeyError, match="OPENAI_API_KEY"):
+        EnvManager.get_env_variable(EnvKeyName.KEY_OPENAI_API_KEY)
+
+
+def test_returns_default_when_missing(monkeypatch):
+    monkeypatch.delenv("GPT_COMPLETION_MODEL", raising=False)
+    assert EnvManager.get_env_variable(EnvKeyName.KEY_GPT_COMPLETION_MODEL, "m1") == "m1"
+
+
+def test_set_value_wins_over_default(monkeypatch):
+    monkeypatch.setenv("GPT_COMPLETION_MODEL", "m2")
+    assert EnvManager.get_env_variable(EnvKeyName.KEY_GPT_COMPLETION_MODEL, "m1") == "m2"
 
 
 @pytest.mark.parametrize(
     ("member", "name"),
     [
-        (EnvKeyName.KEY_GEMINI_KEY, "GEMINI_KEY"),
-        (EnvKeyName.KEY_SERPAPI_KEY, "SERPAPI_KEY"),
+        (EnvKeyName.KEY_API_PORT, "API_PORT"),
+        (EnvKeyName.KEY_OPENAI_API_KEY, "OPENAI_API_KEY"),
+        (EnvKeyName.KEY_OPENAI_IMAGE_MODEL, "OPENAI_IMAGE_MODEL"),
+        (EnvKeyName.KEY_GPT_COMPLETION_MODEL, "GPT_COMPLETION_MODEL"),
     ],
 )
 def test_env_key_values(member, name):

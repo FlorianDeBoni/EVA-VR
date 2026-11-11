@@ -1,5 +1,6 @@
 .venv
 .env.backend
+.env.infrastructure
 
 __pycache__/
 .vscode/

@@ -13,3 +13,9 @@ class HealthResponse(BaseModel):
     """Response body of the health endpoints."""
 
     status: HealthStatus
+
+
+class TranscriptionResponse(BaseModel):
+    """Transcript returned by the speech-to-text endpoint."""
+
+    text: str
