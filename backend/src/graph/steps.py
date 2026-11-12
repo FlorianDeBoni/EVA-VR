@@ -8,6 +8,7 @@ class Step(IntEnum):
 
     GATHER_INFORMATION = 1
     CONCEPT_DESIGN = 2
+    SPATIAL_DESIGN = 3
 
 
 def current_step(state: GraphState) -> Step:
@@ -17,6 +18,8 @@ def current_step(state: GraphState) -> Step:
     as soon as the previous step is validated, in the very turn that validates it. The last
     step stays current once validated, until a next step exists.
     """
-    if state["information"].is_validated:
+    if not state["information"].is_validated:
+        return Step.GATHER_INFORMATION
+    if not state["concept_design"].is_validated:
         return Step.CONCEPT_DESIGN
-    return Step.GATHER_INFORMATION
+    return Step.SPATIAL_DESIGN

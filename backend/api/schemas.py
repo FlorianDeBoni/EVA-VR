@@ -75,6 +75,40 @@ class ConceptResponse(BaseModel):
     )
 
 
+class SpaceResponse(BaseModel):
+    """One space of the room."""
+
+    name: str
+    purpose: str
+    activities: list[str]
+    capacity: int | None
+    size: str | None
+
+
+class RelationshipResponse(BaseModel):
+    """How two spaces (by name) relate."""
+
+    from_space: str
+    to_space: str
+    type: str = Field(
+        description="adjacent, open_connection, visual_link, separated or circulation"
+    )
+    description: str
+
+
+class SpatialDesignResponse(BaseModel):
+    """The spatial organization agreed so far (empty until the assistant proposes one)."""
+
+    spaces: list[SpaceResponse]
+    relationships: list[RelationshipResponse]
+    latest_image_version: int | None = Field(
+        description="Latest picture of the organization: GET /concept/{session_id}/images/{n}"
+    )
+    is_validated: bool = Field(
+        description="True once the user accepted the organization together with a picture"
+    )
+
+
 class ChatResponse(BaseModel):
     """The assistant's reply, with the session to reuse on the next turn."""
 
@@ -85,3 +119,4 @@ class ChatResponse(BaseModel):
     reply: str
     information: InformationResponse
     concept: ConceptResponse
+    spatial_design: SpatialDesignResponse

@@ -12,9 +12,21 @@ from backend.services.chatService import ChatService
 from backend.services.errors import PromptNotFoundError
 from backend.src.graph.tools.concept_design.schemas import ConceptDesign
 from backend.src.graph.tools.gather_information.schemas import InformationToGather
+from backend.src.graph.tools.spatial_design.schemas import (
+    Relationship,
+    RelationType,
+    Space,
+    SpatialDesign,
+)
 
 CONCEPT = ConceptDesign(
     reference_count=3, latest_version=2, is_validated=False, references_revision=123
+)
+SPATIAL = SpatialDesign(
+    spaces=[Space("Lab", "build things", ["prototyping"], 4, "large")],
+    relationships=[Relationship("Lab", "Lounge", RelationType.VISUAL_LINK, "see each other")],
+    is_validated=False,
+    latest_image_version=3,
 )
 INFO = InformationToGather(
     user_type="architects",
@@ -29,8 +41,9 @@ INFO = InformationToGather(
 class FakeChatService:
     """Records the calls of the route; `session_id` is what ensure_session returns."""
 
-    def __init__(self, session_id=None, error=None, information=INFO):
+    def __init__(self, session_id=None, error=None, information=INFO, concept_validated=False):
         self.information = information
+        self.concept = replace(CONCEPT, is_validated=concept_validated)
         self.session_id = session_id or uuid4()
         self.error = error
         self.ensured = None
@@ -48,7 +61,8 @@ class FakeChatService:
             "messages": [*messages, AIMessage(content="Who will use the room?")],
             "session_id": session_id,
             "information": self.information,
-            "concept_design": CONCEPT,
+            "concept_design": self.concept,
+            "spatial_design": SPATIAL,
         }
 
 
@@ -92,6 +106,27 @@ def test_chat_runs_the_agent_and_returns_reply_session_and_information(monkeypat
         "latest_version": 2,
         "is_validated": False,
         "references_revision": 123,
+    }
+    assert body["spatial_design"] == {
+        "spaces": [
+            {
+                "name": "Lab",
+                "purpose": "build things",
+                "activities": ["prototyping"],
+                "capacity": 4,
+                "size": "large",
+            }
+        ],
+        "relationships": [
+            {
+                "from_space": "Lab",
+                "to_space": "Lounge",
+                "type": "visual_link",
+                "description": "see each other",
+            }
+        ],
+        "latest_image_version": 3,
+        "is_validated": False,
     }
     assert str(service.ensured) == known
     session_id, messages = service.chatted
@@ -200,3 +235,11 @@ def test_chat_answers_with_the_step_the_session_is_in(monkeypatch):
     response = _post(monkeypatch, service, {"messages": []})
 
     assert response.json()["step"] == 2
+
+
+def test_chat_answers_step_3_once_the_concept_is_validated(monkeypatch):
+    service = FakeChatService(information=replace(INFO, is_validated=True), concept_validated=True)
+
+    response = _post(monkeypatch, service, {"messages": []})
+
+    assert response.json()["step"] == 3

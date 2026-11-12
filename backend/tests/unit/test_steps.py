@@ -13,17 +13,27 @@ def _state(information=INFO, concept=CONCEPT):
 
 
 def test_step_numbers_are_the_workshop_order():
-    assert [int(step) for step in Step] == [1, 2]
+    assert [int(step) for step in Step] == [1, 2, 3]
 
 
 def test_the_session_starts_at_step_1_until_the_information_is_validated():
     assert current_step(_state()) is Step.GATHER_INFORMATION
 
 
-def test_validating_the_information_moves_to_step_2_and_it_stays_there():
+def test_validating_the_information_moves_to_step_2():
     validated = replace(INFO, is_validated=True)
 
     assert current_step(_state(validated)) is Step.CONCEPT_DESIGN
+
+
+def test_validating_the_concept_moves_to_step_3_and_it_stays_there():
+    validated = replace(INFO, is_validated=True)
+    concept = replace(CONCEPT, is_validated=True)
+
+    assert current_step(_state(validated, concept)) is Step.SPATIAL_DESIGN
+
+
+def test_a_validated_concept_does_not_skip_the_information_step():
     assert (
-        current_step(_state(validated, replace(CONCEPT, is_validated=True))) is Step.CONCEPT_DESIGN
+        current_step(_state(INFO, replace(CONCEPT, is_validated=True))) is Step.GATHER_INFORMATION
     )

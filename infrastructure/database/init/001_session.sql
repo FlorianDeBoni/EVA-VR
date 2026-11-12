@@ -1,7 +1,8 @@
 -- Information gathered from the user during a session (mirrors InformationToGather).
--- Runs once, when the database volume is first created.
+-- Every init script can be run again safely: `task dev:database` re-applies them all.
+-- Docker itself runs them once, when the database volume is first created.
 
-CREATE TABLE session (
+CREATE TABLE IF NOT EXISTS session (
     id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -17,13 +18,13 @@ CREATE TABLE session (
 );
 
 -- Keep updated_at current on every UPDATE, whichever client writes.
-CREATE FUNCTION set_updated_at() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = now();
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER session_set_updated_at
+CREATE OR REPLACE TRIGGER session_set_updated_at
     BEFORE UPDATE ON session
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();

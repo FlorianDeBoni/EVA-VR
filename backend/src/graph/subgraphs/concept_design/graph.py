@@ -21,12 +21,13 @@ from backend.src.graph.tools.concept_design.schemas import (
     ConceptImage,
     ReferenceImage,
 )
-from backend.src.graph.tools.concept_design.tool import generate_concept_image, validate_concept
+from backend.src.graph.tools.concept_design.tool import validate_concept
+from backend.src.graph.tools.generate_image.tool import generate_image
 from backend.src.graph.tools.search_web_images.tool import search_web_images
 from backend.src.settings.envManager import EnvKeyName, EnvManager
 from backend.src.settings.LogManager import LogManager
 
-TOOLS = [search_web_images, generate_concept_image, validate_concept]
+TOOLS = [search_web_images, generate_image, validate_concept]
 
 
 class ConceptDesignGraph:
@@ -34,7 +35,7 @@ class ConceptDesignGraph:
 
     It finds 3 reference images on the web from the gathered information, asks the user
     which elements to keep, then generates a concept image and refines it with the user
-    until they accept it (`search_web_images`, `generate_concept_image`,
+    until they accept it (`search_web_images`, `generate_image`,
     `validate_concept`). Only the overall design is discussed here; details come later.
 
         graph = get_concept_design_graph().graph
@@ -161,14 +162,23 @@ class ConceptDesignGraph:
         ]
         return {"messages": [self.llm.invoke(messages)]}
 
+    @staticmethod
+    def after_tools(state: GraphState) -> str:
+        """Back to the agent, unless the concept was just validated: the step is over."""
+        return END if state["concept_design"].is_validated else "agent"
+
     def compile(self, checkpointer=None) -> CompiledStateGraph:
-        """Build the graph: agent <-> tools, ending when the agent stops calling tools."""
+        """Build the graph: agent <-> tools.
+
+        It ends when the agent stops calling tools, or right after `validate_concept`
+        succeeds: the main graph then moves on to the next step, which speaks next.
+        """
         builder = StateGraph(GraphState)
         builder.add_node("agent", self.agent_node)
         builder.add_node("tools", ToolNode(TOOLS))
         builder.add_edge(START, "agent")
         builder.add_conditional_edges("agent", tools_condition, {"tools": "tools", END: END})
-        builder.add_edge("tools", "agent")
+        builder.add_conditional_edges("tools", self.after_tools, {"agent": "agent", END: END})
         return builder.compile(checkpointer=checkpointer)
 
     @property

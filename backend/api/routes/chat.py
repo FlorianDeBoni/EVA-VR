@@ -4,7 +4,13 @@ from fastapi import APIRouter, HTTPException
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from openai import APIError
 
-from backend.api.schemas import ChatRequest, ChatResponse, ConceptResponse, InformationResponse
+from backend.api.schemas import (
+    ChatRequest,
+    ChatResponse,
+    ConceptResponse,
+    InformationResponse,
+    SpatialDesignResponse,
+)
 from backend.services.chatService import get_chat_service
 from backend.services.errors import PromptNotFoundError
 from backend.src.graph.steps import current_step
@@ -43,4 +49,5 @@ def chat(body: ChatRequest) -> ChatResponse:
         reply=str(state["messages"][-1].text),
         information=InformationResponse(**asdict(state["information"])),
         concept=ConceptResponse(**asdict(state["concept_design"])),
+        spatial_design=SpatialDesignResponse(**asdict(state["spatial_design"])),
     )

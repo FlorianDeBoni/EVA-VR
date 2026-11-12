@@ -22,10 +22,20 @@ class ConceptDesignService:
 
     Three places, all keyed by session:
     - `concept_reference_images`: the web images shown to the user,
-    - `concept_images`: every AI-generated concept (the next ones iterate on them),
-    - `session.concept_image` + `concept_design_validated`: only the validated one.
+    - `concept_images`: every AI-generated image (the next ones iterate on them). Step 2 makes
+      the concept, step 3 makes refined versions of it; `step` tells them apart and the
+      version numbers keep counting up across both,
+    - `session.concept_image` + `concept_design_validated`: only the validated concept.
     Images are stored as base64 text. The DatabaseClient is created lazily from the env.
     """
+
+    REOPEN_STEP_2 = (
+        "UPDATE session SET concept_image = NULL, concept_design_validated = FALSE WHERE id = %s"
+    )
+    REOPEN_STEP_3 = (
+        "UPDATE session SET spatial_image = NULL, spatial_design = NULL,"
+        " spatial_design_validated = FALSE WHERE id = %s"
+    )
 
     def __init__(self, client: DatabaseClient | None = None) -> None:
         self._client = client
@@ -117,10 +127,13 @@ class ConceptDesignService:
 
     # ----- generated concept images
 
-    def add_concept_image(self, session_id: UUID, image_b64: str, prompt: str) -> int:
-        """Store a new generated image and return its version (1, 2, 3...).
+    def add_concept_image(
+        self, session_id: UUID, image_b64: str, prompt: str, step: int = 2
+    ) -> int:
+        """Store a new image generated in `step` and return its version (1, 2, 3...).
 
-        A new image reopens the step: the validated concept of the session is cleared.
+        A new image reopens the step that made it: in step 2 the validated concept of the
+        session is cleared, in step 3 the validated spatial design and its picture.
 
         Raises:
             SessionNotFoundError: If no session has this id.
@@ -128,14 +141,13 @@ class ConceptDesignService:
         try:
             with self.client.connection() as conn:
                 row = conn.execute(
-                    "INSERT INTO concept_images (session_id, version, image_b64, prompt)"
-                    " SELECT %s, COALESCE(MAX(version), 0) + 1, %s, %s"
+                    "INSERT INTO concept_images (session_id, version, image_b64, prompt, step)"
+                    " SELECT %s, COALESCE(MAX(version), 0) + 1, %s, %s, %s"
                     " FROM concept_images WHERE session_id = %s RETURNING version",
-                    (session_id, image_b64, prompt, session_id),
+                    (session_id, image_b64, prompt, step, session_id),
                 ).fetchone()
                 conn.execute(
-                    "UPDATE session SET concept_image = NULL, concept_design_validated = FALSE"
-                    " WHERE id = %s",
+                    self.REOPEN_STEP_2 if step == 2 else self.REOPEN_STEP_3,
                     (session_id,),
                 )
         except psycopg.errors.ForeignKeyViolation as exc:
@@ -144,15 +156,19 @@ class ConceptDesignService:
         return row["version"]
 
     def get_concept_image(
-        self, session_id: UUID, version: int | None = None
+        self, session_id: UUID, version: int | None = None, step: int | None = None
     ) -> ConceptImage | None:
-        """Return the concept image of this version (the latest by default), or None."""
+        """Return the image of this version, or None.
+
+        By default the latest one; `step` limits the search to the images made in that step.
+        """
         with self.client.connection() as conn:
             row = conn.execute(
                 "SELECT version, image_b64, mime_type, prompt FROM concept_images"
                 " WHERE session_id = %s AND (%s::int IS NULL OR version = %s)"
+                " AND (%s::int IS NULL OR step = %s)"
                 " ORDER BY version DESC LIMIT 1",
-                (session_id, version, version),
+                (session_id, version, version, step, step),
             ).fetchone()
         return ConceptImage(**row) if row else None
 

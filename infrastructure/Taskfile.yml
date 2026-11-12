@@ -24,9 +24,18 @@ tasks:
     cmds:
       - "{{.LANGFUSE_COMPOSE}} up -d"
   dev:database:
-    desc: Start the application Postgres database (detached, port APP_DB_PORT) and wait until it is ready
+    desc: Start the application Postgres database (detached, port APP_DB_PORT), wait until it is ready, apply the migrations
     cmds:
       - "{{.DATABASE_COMPOSE}} up -d --wait"
+      - task: migrate:database
+  migrate:database:
+    desc: Apply the init scripts of database/init to the running database (safe to re-run; Docker runs them only on a new volume)
+    cmds:
+      - |
+        for file in database/init/*.sql; do
+          {{.DATABASE_COMPOSE}} exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < "$file" || exit 1
+          echo "applied $file"
+        done
   wait:langfuse:
     desc: Wait until the Langfuse web service answers (up to 3 minutes)
     cmds:

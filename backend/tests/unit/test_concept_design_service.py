@@ -96,7 +96,7 @@ def test_get_reference_images_maps_rows():
     assert ConceptDesignService(client=FakeClient(None)).get_reference_image(uuid4(), 1) is None
 
 
-def test_add_concept_image_returns_the_version_and_reopens_the_validation():
+def test_add_concept_image_returns_the_version_and_reopens_the_concept_validation():
     client = FakeClient(row={"version": 4})
     session_id = uuid4()
 
@@ -104,9 +104,24 @@ def test_add_concept_image_returns_the_version_and_reopens_the_validation():
 
     assert version == 4
     assert "INSERT INTO concept_images" in client.queries[0][0]
-    assert client.queries[0][1] == (session_id, "QUJD", "a prompt", session_id)
+    # Step 2 unless told otherwise.
+    assert client.queries[0][1] == (session_id, "QUJD", "a prompt", 2, session_id)
     update = client.queries[1][0]
     assert "concept_image = NULL" in update and "concept_design_validated = FALSE" in update
+    assert "spatial" not in update
+
+
+def test_a_picture_of_step_3_reopens_the_spatial_design_not_the_concept():
+    client = FakeClient(row={"version": 5})
+    session_id = uuid4()
+
+    ConceptDesignService(client=client).add_concept_image(session_id, "QUJD", "p", step=3)
+
+    assert client.queries[0][1] == (session_id, "QUJD", "p", 3, session_id)
+    update = client.queries[1][0]
+    assert "spatial_image = NULL" in update and "spatial_design_validated = FALSE" in update
+    # Step 2 stays validated: the session must not fall back to the concept step.
+    assert "concept_design_validated" not in update and "concept_image" not in update
 
 
 def test_adding_an_image_to_an_unknown_session_raises():
@@ -125,8 +140,19 @@ def test_get_concept_image_defaults_to_the_latest_version():
 
     assert image == ConceptImage(2, "QUJD", "image/png", "p")
     assert "ORDER BY version DESC LIMIT 1" in client.queries[0][0]
-    assert client.queries[0][1] == (session_id, None, None)
+    assert client.queries[0][1] == (session_id, None, None, None, None)
     assert ConceptDesignService(client=FakeClient(None)).get_concept_image(uuid4(), 9) is None
+
+
+def test_get_concept_image_can_be_limited_to_the_images_of_a_step():
+    row = {"version": 5, "image_b64": "QUJD", "mime_type": "image/png", "prompt": "p"}
+    client = FakeClient(row)
+    session_id = uuid4()
+
+    ConceptDesignService(client=client).get_concept_image(session_id, step=3)
+
+    assert "step = %s" in client.queries[0][0]
+    assert client.queries[0][1] == (session_id, None, None, 3, 3)
 
 
 def test_validate_concept_copies_the_image_into_the_main_table():

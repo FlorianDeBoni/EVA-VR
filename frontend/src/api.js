@@ -41,7 +41,7 @@ export function createApi(baseUrl, fetchImpl = (...args) => fetch(...args)) {
       return url(`/concept/${sessionId}/${kind}${id === undefined ? "" : `/${id}`}`);
     },
 
-    /** POST /chat -> { session_id, step, reply, information, concept } */
+    /** POST /chat -> { session_id, step, reply, information, concept, spatial_design } */
     chat(sessionId, messages) {
       return call("/chat", {
         method: "POST",

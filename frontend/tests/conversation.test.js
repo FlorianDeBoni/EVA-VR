@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { Conversation, newImages } from "../src/conversation.js";
+import { Conversation, newImages, STEPS } from "../src/conversation.js";
 
 const INFO = { user_type: "kids", is_validated: false };
 
@@ -229,4 +229,42 @@ test("reset forgets the step", async () => {
   conversation.reset();
 
   assert.equal(conversation.step, null);
+});
+
+test("the spatial design of the last reply is kept and reset with the conversation", async () => {
+  const design = { spaces: [{ name: "Lab" }], relationships: [], is_validated: false };
+  const api = fakeApi(() => ({
+    reply: "ok",
+    information: INFO,
+    step: 3,
+    concept: progress(),
+    spatial_design: design,
+  }));
+  const conversation = new Conversation(api, ids());
+
+  await conversation.send("hello");
+  assert.equal(conversation.step, 3);
+  assert.deepEqual(conversation.spatialDesign, design);
+
+  conversation.reset();
+  assert.equal(conversation.spatialDesign, null);
+});
+
+test("step 3 is named", () => {
+  assert.equal(STEPS[2], "Spatial design");
+});
+
+test("a picture generated in step 3 is shown in the chat like any new image", async () => {
+  const replies = [
+    { step: 3, concept: progress({ reference_count: 3, latest_version: 2, is_validated: true, references_revision: 5 }) },
+    { step: 3, concept: progress({ reference_count: 3, latest_version: 3, is_validated: true, references_revision: 5 }) },
+  ];
+  const api = fakeApi(() => ({ reply: "ok", information: INFO, spatial_design: { spaces: [] }, ...replies.shift() }));
+  const conversation = new Conversation(api, ids());
+
+  await conversation.send("one");
+  await conversation.send("draw it");
+
+  // The first reply of the session brings the references; the second only the new picture.
+  assert.deepEqual(conversation.messages[3].images, [{ kind: "images", id: 3 }]);
 });

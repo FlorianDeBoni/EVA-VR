@@ -119,11 +119,11 @@ async function toggleRecording() {
       </p>
       <div v-for="(message, i) in conversation.messages" :key="i" class="message" :class="message.role">
         {{ message.content }}
-        <div v-if="message.images?.length" class="images">
+        <div v-if="message.images?.some((image) => conversation.isCurrent(image))" class="images">
           <template v-for="image in message.images" :key="`${image.kind}${image.id}`">
             <img
               v-if="conversation.isCurrent(image)"
-              :class="image.kind"
+              :class="`image-${image.kind}`"
               :src="conversation.imageUrl(image)"
               :alt="image.kind === 'references' ? `Reference ${image.id}` : `Concept version ${image.id}`"
               @load="scrollDown"

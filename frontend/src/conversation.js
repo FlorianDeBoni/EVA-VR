@@ -1,5 +1,5 @@
 /** Names of the workshop steps, by step number - 1 (the API only sends the number). */
-export const STEPS = ["Gathering information", "Concept design"];
+export const STEPS = ["Gathering information", "Concept design", "Spatial design"];
 
 /**
  * The images a reply brings: the references when they were just (re)searched, and the
@@ -37,6 +37,7 @@ export class Conversation {
     this.information = null; // what the agent has gathered so far
     this.step = null; // number of the workshop step, known after the first reply
     this.concept = null; // concept design progress: { reference_count, latest_version, ... }
+    this.spatialDesign = null; // { spaces, relationships, is_validated }
   }
 
   /**
@@ -83,6 +84,7 @@ export class Conversation {
     this.information = body.information;
     this.step = body.step ?? null;
     this.concept = body.concept ?? null;
+    this.spatialDesign = body.spatial_design ?? null;
     this.messages = [
       ...history,
       { role: "assistant", content: body.reply, ...(images.length && { images }) },

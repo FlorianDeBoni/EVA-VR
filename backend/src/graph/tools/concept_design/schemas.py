@@ -42,29 +42,6 @@ class ConceptImage:
     prompt: str
 
 
-class GenerateConceptImageInput(BaseModel):
-    """Arguments of the `generate_concept_image` tool."""
-
-    prompt: str = Field(
-        min_length=1,
-        description=(
-            "Complete description of the OVERALL design to draw (volume, spatial layout, mood, "
-            "palette, materials, light). When iterating, say what to change and what to keep."
-        ),
-    )
-    reference_numbers: list[int] = Field(
-        default_factory=list,
-        description="Numbers (1-3) of the reference images to draw elements from",
-    )
-    base_version: int | None = Field(
-        default=None,
-        ge=1,
-        description="Concept version to iterate on. Default: the latest one",
-    )
-    state: Annotated[dict, InjectedState]
-    tool_call_id: Annotated[str, InjectedToolCallId]
-
-
 class ValidateConceptInput(BaseModel):
     """Arguments of the `validate_concept` tool."""
 

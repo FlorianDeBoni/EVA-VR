@@ -5,6 +5,7 @@ import ChatPanel from "./components/ChatPanel.vue";
 import ConceptPanel from "./components/ConceptPanel.vue";
 import HealthButton from "./components/HealthButton.vue";
 import InformationPanel from "./components/InformationPanel.vue";
+import SpatialPanel from "./components/SpatialPanel.vue";
 import { Conversation, STEPS } from "./conversation.js";
 import { api } from "./services.js";
 
@@ -13,7 +14,8 @@ const conversation = reactive(new Conversation(api));
 
 // The side panel is a tab: closed by default, so the chat takes the whole width.
 const panelOpen = ref(false);
-const panelLabel = computed(() => (conversation.step === 2 ? "Concept" : "Information"));
+const PANEL_LABELS = ["Information", "Concept", "Spatial design"];
+const panelLabel = computed(() => PANEL_LABELS[(conversation.step ?? 1) - 1]);
 </script>
 
 <template>
@@ -32,6 +34,7 @@ const panelLabel = computed(() => (conversation.step === 2 ? "Concept" : "Inform
       <ChatPanel :conversation="conversation" />
       <template v-if="panelOpen">
         <ConceptPanel v-if="conversation.step === 2" :conversation="conversation" />
+        <SpatialPanel v-else-if="conversation.step === 3" :conversation="conversation" />
         <InformationPanel v-else :information="conversation.information" />
       </template>
       <button

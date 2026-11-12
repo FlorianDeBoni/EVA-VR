@@ -12,3 +12,11 @@ class PromptNotFoundError(LookupError):
 
 class ConceptImageNotFoundError(LookupError):
     """The session has no concept image with this version."""
+
+
+class SpatialDesignNotFoundError(LookupError):
+    """The session has no spatial design draft to validate."""
+
+
+class SpatialImageOutdatedError(ValueError):
+    """The spatial design was changed after the picture, so the picture no longer shows it."""
