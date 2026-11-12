@@ -9,6 +9,8 @@ const page = (name) => fileURLToPath(new URL(name, import.meta.url));
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
+    // Public path of the app. "/" locally; "/eva-vr/" when served behind the reverse proxy.
+    base: env.VITE_BASE_PATH || "/",
     plugins: [vue()],
     // Two pages: the app, and the full-screen view of the final picture ("Go to VR").
     build: { rollupOptions: { input: { main: page("index.html"), vr: page("vr.html") } } },

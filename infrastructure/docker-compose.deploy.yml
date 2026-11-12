@@ -1,0 +1,33 @@
+# Deployment behind Caddy (staging.hybridintelligence.eu/eva-vr).
+# Caddy routes /eva-vr/api/* -> eva-vr-backend:3020 and /eva-vr/* -> eva-vr-frontend:80.
+# Run from the repo root: docker compose -f infrastructure/docker-compose.deploy.yml up -d --build
+# Set CADDY_NETWORK to the Docker network Caddy is attached to.
+name: eva-vr
+
+services:
+  backend:
+    container_name: eva-vr-backend
+    build:
+      context: ..
+      dockerfile: infrastructure/backend/Dockerfile
+    env_file: ../backend/.env.backend
+    command: uvicorn backend.api.main:app --host 0.0.0.0 --port 3020
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks: [caddy]
+
+  frontend:
+    container_name: eva-vr-frontend
+    build:
+      context: ../frontend
+      args:
+        VITE_BASE_PATH: /eva-vr/
+        VITE_API_URL: /eva-vr/api
+    restart: unless-stopped
+    networks: [caddy]
+
+networks:
+  caddy:
+    name: ${CADDY_NETWORK:?set CADDY_NETWORK to the Docker network of Caddy}
+    external: true
