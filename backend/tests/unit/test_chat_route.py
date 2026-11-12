@@ -96,10 +96,20 @@ def test_chat_without_session_id_lets_the_service_create_one(monkeypatch):
     assert response.json()["session_id"] == str(service.session_id)
 
 
+def test_chat_with_no_messages_lets_the_agent_open_the_conversation(monkeypatch):
+    service = FakeChatService()
+
+    response = _post(monkeypatch, service, {"messages": []})
+
+    assert response.status_code == 200
+    assert response.json()["reply"] == "Who will use the room?"
+    assert service.chatted[1] == []
+
+
 @pytest.mark.parametrize(
     "body",
     [
-        {"messages": []},
+        {"messages": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "x"}]},
         {"messages": [{"role": "user", "content": ""}]},
         {"messages": [{"role": "system", "content": "x"}]},
         {"messages": [{"role": "assistant", "content": "last is not the user"}]},

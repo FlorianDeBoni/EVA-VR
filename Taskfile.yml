@@ -2,7 +2,8 @@ version: "3"
 
 dotenv: ["backend/.env.backend"]
 
-# Docker tasks (dev:backend, dev:langfuse, docker:stop, docker:delete) live in infrastructure/
+# Docker tasks (dev:backend, dev:langfuse, docker:stop, docker:delete) live in infrastructure/.
+# The frontend runs locally with npm (see frontend/).
 includes:
   infrastructure:
     taskfile: infrastructure/Taskfile.yml
@@ -10,6 +11,12 @@ includes:
     flatten: true
 
 tasks:
+  dev:frontend:
+    desc: Install dependencies and start the frontend dev server (Ctrl+C to stop)
+    dir: frontend
+    cmds:
+      - npm install
+      - npm run dev
   test:
     desc: Run the test suite with a coverage report
     cmds:

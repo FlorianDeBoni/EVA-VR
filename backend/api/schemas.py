@@ -40,12 +40,15 @@ class ChatRequest(BaseModel):
         description="Session of the conversation. Created if missing or unknown.",
     )
     messages: list[ChatMessage] = Field(
-        min_length=1, description="Whole history, oldest first, ending with the user's message"
+        description=(
+            "Whole history, oldest first. Empty to let the assistant open the conversation; "
+            "otherwise it ends with the user's message."
+        )
     )
 
     @model_validator(mode="after")
     def _ends_with_a_user_message(self) -> ChatRequest:
-        if self.messages[-1].role != "user":
+        if self.messages and self.messages[-1].role != "user":
             raise ValueError("the last message must come from the user")
         return self
 

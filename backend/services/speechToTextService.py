@@ -13,8 +13,9 @@ class SpeechToTextService:
 
         text = get_speech_to_text_service().transcribe(audio_bytes, "voice.webm")
 
-    Model and size limit come from .env.backend (OPENAI_STT_MODEL, STT_MAX_AUDIO_BYTES)
-    unless passed explicitly. The OpenAI client is created lazily and cached.
+    Model, size limit and language come from .env.backend (OPENAI_STT_MODEL,
+    STT_MAX_AUDIO_BYTES, STT_LANGUAGE) unless passed explicitly. The OpenAI client is
+    created lazily and cached.
     """
 
     def __init__(
@@ -22,10 +23,12 @@ class SpeechToTextService:
         client: OpenAI | None = None,
         model: str | None = None,
         max_audio_bytes: int | None = None,
+        language: str | None = None,
     ) -> None:
         self._client = client
         self._model = model
         self._max_audio_bytes = max_audio_bytes
+        self._language = language
         self.logger = LogManager.get_logger(__name__)
 
     @property
@@ -44,6 +47,10 @@ class SpeechToTextService:
             return self._max_audio_bytes
         return int(EnvManager.get_env_variable(EnvKeyName.KEY_STT_MAX_AUDIO_BYTES))
 
+    @property
+    def language(self) -> str:
+        return self._language or EnvManager.get_env_variable(EnvKeyName.KEY_STT_LANGUAGE)
+
     def transcribe(
         self,
         audio: bytes,
@@ -58,7 +65,7 @@ class SpeechToTextService:
             audio: Raw audio bytes (flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav or webm).
             filename: Original file name; OpenAI uses its extension to detect the format.
             content_type: MIME type of the upload, if known.
-            language: Optional ISO-639-1 code (e.g. "fr") to improve accuracy and latency.
+            language: ISO-639-1 code of the speech; defaults to STT_LANGUAGE ("en").
             prompt: Optional text hinting at vocabulary or style.
 
         Raises:
@@ -70,7 +77,9 @@ class SpeechToTextService:
             raise SpeechToTextError(f"audio exceeds {self.max_audio_bytes} bytes")
 
         self.logger.info("Transcribing %s (%d bytes)", filename, len(audio))
-        options = {k: v for k, v in {"language": language, "prompt": prompt}.items() if v}
+        options = {
+            k: v for k, v in {"language": language or self.language, "prompt": prompt}.items() if v
+        }
         file = (filename, audio, content_type) if content_type else (filename, audio)
         resp = self.client.audio.transcriptions.create(model=self.model, file=file, **options)
         return resp.text

@@ -1,0 +1,66 @@
+:root {
+  --bg: #0b0f1a;
+  --panel: #121828;
+  --border: rgba(255, 255, 255, 0.12);
+  --text: #e8ecf5;
+  --muted: #8b95ad;
+  --accent: #6ea8ff;
+  --user: #243a63;
+  --assistant: #1d2740;
+  --ok: #4cd964;
+  --ko: #ff453a;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); height: 100vh; overflow: hidden; }
+
+.app { height: 100vh; display: flex; flex-direction: column; padding: 16px; gap: 12px; }
+
+header { display: flex; align-items: center; gap: 12px; }
+header h1 { margin: 0; font-size: 1.2rem; letter-spacing: 0.08em; }
+.session { color: var(--muted); font-size: 0.75rem; font-family: ui-monospace, monospace; margin-right: auto; }
+
+button {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 14px; font: inherit; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.health { display: inline-flex; align-items: center; gap: 8px; }
+.health .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); }
+.health.up .dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.health.down .dot { background: var(--ko); box-shadow: 0 0 8px var(--ko); }
+
+main { flex: 1; min-height: 0; display: flex; gap: 12px; justify-content: center; }
+.chat, .information { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+
+.chat { width: min(640px, 100%); display: flex; flex-direction: column; min-height: 0; }
+.messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.message { max-width: 85%; padding: 10px 14px; border-radius: 12px; white-space: pre-wrap; line-height: 1.4; }
+.message.user { align-self: flex-end; background: var(--user); }
+.message.assistant { align-self: flex-start; background: var(--assistant); }
+.message.error { align-self: center; color: var(--ko); border: 1px solid var(--ko); font-size: 0.85rem; }
+.message.pending { color: var(--muted); font-style: italic; }
+.empty { margin: auto; color: var(--muted); text-align: center; }
+
+.composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); }
+.composer textarea {
+  flex: 1; resize: none; background: rgba(0, 0, 0, 0.3); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font: inherit;
+}
+.mic.recording { border-color: var(--ko); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 10px var(--ko); } }
+
+.information { width: 280px; padding: 16px; overflow-y: auto; }
+.information h2 { margin: 0 0 12px; font-size: 0.9rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.information dt { color: var(--muted); font-size: 0.75rem; margin-top: 10px; }
+.information dd { margin: 2px 0 0; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.8rem; background: var(--assistant); }
+.badge.validated { background: var(--ok); color: #04210c; }
+
+@media (max-width: 900px) {
+  .information { display: none; }
+}

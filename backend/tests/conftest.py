@@ -14,5 +14,6 @@ for _key in (
     "BLOCKED_HOSTS",
     "IMAGE_RANK_BATCH_SIZE",
     "IMAGE_SEARCH_TOP_K",
+    "CORS_ORIGINS",
 ):
     os.environ.setdefault(_key, _template[_key])

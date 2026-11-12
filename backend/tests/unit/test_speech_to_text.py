@@ -14,6 +14,7 @@ from backend.services.speechToTextService import SpeechToTextError, SpeechToText
 def stt_env(monkeypatch):
     monkeypatch.setenv("OPENAI_STT_MODEL", "stt-model")
     monkeypatch.setenv("STT_MAX_AUDIO_BYTES", "100")
+    monkeypatch.setenv("STT_LANGUAGE", "en")
 
 
 class FakeOpenAI:
@@ -44,10 +45,21 @@ def test_transcribe_sends_file_model_and_options():
     ]
 
 
-def test_optional_arguments_are_omitted_when_unset():
+def test_language_defaults_to_the_configured_one_and_other_options_are_omitted():
     client = FakeOpenAI()
     SpeechToTextService(client=client).transcribe(b"abc", "v.wav")
-    assert client.calls == [{"model": "stt-model", "file": ("v.wav", b"abc")}]
+    assert client.calls == [{"model": "stt-model", "file": ("v.wav", b"abc"), "language": "en"}]
+
+
+def test_language_comes_from_env_and_can_be_overridden(monkeypatch):
+    monkeypatch.setenv("STT_LANGUAGE", "de")
+    client = FakeOpenAI()
+    service = SpeechToTextService(client=client)
+
+    service.transcribe(b"abc", "v.wav")
+    service.transcribe(b"abc", "v.wav", language="fr")
+
+    assert [c["language"] for c in client.calls] == ["de", "fr"]
 
 
 def test_empty_and_oversized_audio_are_rejected():

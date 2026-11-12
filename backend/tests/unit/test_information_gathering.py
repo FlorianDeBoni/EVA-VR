@@ -168,3 +168,15 @@ def test_agent_ends_the_turn_without_tool_calls(database):
     assert result["messages"][-1].content == "Who will use the room?"
     assert database.updates == []
     assert len(llm.calls) == 1
+
+
+def test_agent_opens_the_conversation_when_there_is_no_message_yet(database):
+    llm = FakeLLM(AIMessage(content="Welcome! Who will use the room?"))
+    agent = InformationGatheringGraph(llm=llm, prompt_service=FakePrompts())
+
+    result = agent.graph.invoke({"messages": [], "session_id": uuid4(), "information": EMPTY})
+
+    assert result["messages"][-1].content == "Welcome! Who will use the room?"
+    assert len(llm.calls) == 1
+    assert len(llm.calls[0]) == 1 and isinstance(llm.calls[0][0], SystemMessage)
+    assert database.updates == []

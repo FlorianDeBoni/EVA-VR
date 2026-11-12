@@ -18,6 +18,7 @@ def chat(body: ChatRequest) -> ChatResponse:
     Creates the session if `session_id` is missing or unknown, loads what was already
     gathered from the database, and asks the agent. The server keeps no history: send
     the whole conversation again on every turn, with the `session_id` of the response.
+    Send an empty `messages` list to let the assistant open the conversation (welcome message).
 
     Sync on purpose: the LLM and database calls block, so FastAPI runs this in its
     threadpool instead of the event loop.
