@@ -3,12 +3,9 @@ from functools import lru_cache
 from openai import OpenAI
 
 from backend.infra.AIClient import AIClient
+from backend.services.errors import SpeechToTextError
 from backend.src.settings.envManager import EnvKeyName, EnvManager
 from backend.src.settings.LogManager import LogManager
-
-
-class SpeechToTextError(ValueError):
-    """The audio cannot be sent for transcription (empty or too large)."""
 
 
 class SpeechToTextService:

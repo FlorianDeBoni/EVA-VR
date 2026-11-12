@@ -1,0 +1,26 @@
+# Application database: stores the information gathered from users (see init/).
+# Same credentials as Langfuse's Postgres (POSTGRES_USER / POSTGRES_PASSWORD), own container and volume.
+# Values come from infrastructure/.env.infrastructure.
+name: eva-vr-database
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${APP_DB_NAME:?}
+    ports:
+      - "${APP_DB_PORT:?}:5432"
+    volumes:
+      - eva_vr_postgres_data:/var/lib/postgresql/data
+      # Scripts in this folder run once, when the data volume is first created.
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  eva_vr_postgres_data:

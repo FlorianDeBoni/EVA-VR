@@ -4,6 +4,7 @@ version: "3"
 # `dotenv` is not supported in included Taskfiles: variables are passed with --env-file.
 vars:
   LANGFUSE_COMPOSE: docker compose --env-file .env.infrastructure -f langfuse/docker-compose.yml
+  DATABASE_COMPOSE: docker compose --env-file .env.infrastructure -f database/docker-compose.yml
   BACKEND_COMPOSE: docker compose --env-file ../.env.backend -f backend/docker-compose.yml
 
 tasks:
@@ -11,17 +12,30 @@ tasks:
     desc: Build and start the API in Docker (detached) with auto-reload; stop with docker:stop
     cmds:
       - "{{.BACKEND_COMPOSE}} up --build -d"
+  seed:prompts:
+    desc: Publish the prompts of langfuse/prompts/*.md to Langfuse as "production" (needs dev:langfuse)
+    cmds:
+      - >-
+        {{.BACKEND_COMPOSE}} run --rm
+        -v ./langfuse/prompts:/seed/prompts:ro
+        backend python -m backend.scripts.seed_prompts /seed/prompts
   dev:langfuse:
     desc: Start the local Langfuse service (UI at LANGFUSE_URL, see .env.infrastructure)
     cmds:
       - "{{.LANGFUSE_COMPOSE}} up -d"
+  dev:database:
+    desc: Start the application Postgres database (detached, port APP_DB_PORT)
+    cmds:
+      - "{{.DATABASE_COMPOSE}} up -d"
   docker:stop:
-    desc: Stop the Docker services (backend, Langfuse) without removing them
+    desc: Stop the Docker services (backend, Langfuse, database) without removing them
     cmds:
       - "{{.BACKEND_COMPOSE}} stop"
       - "{{.LANGFUSE_COMPOSE}} stop"
+      - "{{.DATABASE_COMPOSE}} stop"
   docker:delete:
-    desc: Stop and delete the Docker services, including their volumes (Langfuse data is lost)
+    desc: Stop and delete the Docker services, including their volumes (Langfuse and database data is lost)
     cmds:
       - "{{.BACKEND_COMPOSE}} down --volumes"
       - "{{.LANGFUSE_COMPOSE}} down --volumes"
+      - "{{.DATABASE_COMPOSE}} down --volumes"
