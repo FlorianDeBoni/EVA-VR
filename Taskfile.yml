@@ -2,8 +2,8 @@ version: "3"
 
 dotenv: ["backend/.env.backend"]
 
-# Docker tasks (dev:backend, dev:langfuse, docker:stop, docker:delete) live in infrastructure/.
-# The frontend runs locally with npm (see frontend/); docker:stop and docker:delete stop it too.
+# Docker tasks (dev:deploy, dev:backend, dev:langfuse, docker:stop, docker:delete) live in infrastructure/.
+# `start` runs backend + frontend in Docker (deploy compose); `dev:local` runs the frontend with npm.
 includes:
   infrastructure:
     taskfile: infrastructure/Taskfile.yml
@@ -12,20 +12,25 @@ includes:
 
 tasks:
   start:
-    desc: Start everything - Langfuse, database, seed the prompts, backend, then the frontend (Ctrl+C stops the frontend only)
+    desc: Start everything - Langfuse, database, seed the prompts, then backend and frontend in Docker behind Caddy (/eva-vr)
     cmds:
       - task: stop:frontend # a frontend left from a previous run would hold its port
       - task: dev:langfuse
       - task: dev:database
       - task: wait:langfuse
       - task: seed:prompts
-      - task: dev:backend
-      - task: dev:frontend
+      - task: dev:deploy
   restart:
     desc: Stop everything (data kept), then start it all again. Prompts are re-seeded.
     cmds:
       - task: docker:stop
       - task: start
+  dev:local:
+    desc: Local development - backend in Docker with auto-reload, then the frontend dev server (Ctrl+C stops the frontend only)
+    cmds:
+      - task: stop:frontend
+      - task: dev:backend
+      - task: dev:frontend
   dev:frontend:
     desc: Install dependencies and start the frontend dev server (Ctrl+C to stop)
     dir: frontend

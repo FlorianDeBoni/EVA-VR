@@ -6,12 +6,18 @@ vars:
   LANGFUSE_COMPOSE: docker compose --env-file .env.infrastructure -f langfuse/docker-compose.yml
   DATABASE_COMPOSE: docker compose --env-file .env.infrastructure -f database/docker-compose.yml
   BACKEND_COMPOSE: docker compose --env-file ../backend/.env.backend -f backend/docker-compose.yml
+  # Backend + frontend behind Caddy (/eva-vr). CADDY_NETWORK defaults to "caddy".
+  DEPLOY_COMPOSE: CADDY_NETWORK=${CADDY_NETWORK:-caddy} docker compose --env-file ../backend/.env.backend -f docker-compose.deploy.yml
 
 tasks:
   dev:backend:
     desc: Build and start the API in Docker (detached) with auto-reload; stop with docker:stop
     cmds:
       - "{{.BACKEND_COMPOSE}} up --build -d"
+  dev:deploy:
+    desc: Build and start the backend (eva-vr-backend:3020) and the frontend (eva-vr-frontend:80) in Docker, on the Caddy network
+    cmds:
+      - "{{.DEPLOY_COMPOSE}} up --build -d"
   seed:prompts:
     desc: Publish the prompts of langfuse/prompts/*.md to Langfuse as "production" (needs dev:langfuse)
     cmds:
@@ -56,9 +62,10 @@ tasks:
       # pkill exits 1 when nothing matched: that is fine.
       - pkill -f "{{.ROOT_DIR}}/frontend/node_modules/.bin/vite" || true
   docker:stop:
-    desc: Stop all the services (frontend dev server, backend, Langfuse, database) without removing them
+    desc: Stop all the services (frontend, backend, Langfuse, database) without removing them
     cmds:
       - task: stop:frontend
+      - "{{.DEPLOY_COMPOSE}} stop"
       - "{{.BACKEND_COMPOSE}} stop"
       - "{{.LANGFUSE_COMPOSE}} stop"
       - "{{.DATABASE_COMPOSE}} stop"
@@ -66,6 +73,7 @@ tasks:
     desc: Stop everything and delete the Docker services with their volumes (data is lost); frees all the ports
     cmds:
       - task: stop:frontend
+      - "{{.DEPLOY_COMPOSE}} down --volumes"
       - "{{.BACKEND_COMPOSE}} down --volumes"
       - "{{.LANGFUSE_COMPOSE}} down --volumes"
       - "{{.DATABASE_COMPOSE}} down --volumes"
