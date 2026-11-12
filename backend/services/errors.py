@@ -20,3 +20,11 @@ class SpatialDesignNotFoundError(LookupError):
 
 class SpatialImageOutdatedError(ValueError):
     """The spatial design was changed after the picture, so the picture no longer shows it."""
+
+
+class DetailedDesignNotFoundError(LookupError):
+    """The session has no detailed design draft, or no picture of this step, to validate."""
+
+
+class DetailedImageOutdatedError(ValueError):
+    """The detailed design was changed after the picture, so the picture no longer shows it."""

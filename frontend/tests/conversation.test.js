@@ -268,3 +268,111 @@ test("a picture generated in step 3 is shown in the chat like any new image", as
   // The first reply of the session brings the references; the second only the new picture.
   assert.deepEqual(conversation.messages[3].images, [{ kind: "images", id: 3 }]);
 });
+
+test("the detailed design of the last reply is kept and reset with the conversation", async () => {
+  const design = { details: [{ name: "Table" }], latest_image_version: 4, is_validated: true };
+  const api = fakeApi(() => ({
+    reply: "ok",
+    information: INFO,
+    step: 4,
+    concept: progress(),
+    detailed_design: design,
+  }));
+  const conversation = new Conversation(api, ids());
+
+  await conversation.send("hello");
+  assert.equal(conversation.step, 4);
+  assert.deepEqual(conversation.detailedDesign, design);
+
+  conversation.reset();
+  assert.equal(conversation.detailedDesign, null);
+});
+
+test("step 4 is named, and a final picture is shown in the chat like any new image", async () => {
+  assert.equal(STEPS[3], "Detailed design");
+  const replies = [
+    { step: 4, concept: progress({ latest_version: 5, is_validated: true }) },
+    { step: 4, concept: progress({ latest_version: 6, is_validated: true }) },
+  ];
+  const api = fakeApi(() => ({ reply: "ok", information: INFO, detailed_design: { details: [] }, ...replies.shift() }));
+  const conversation = new Conversation(api, ids());
+
+  await conversation.send("one");
+  await conversation.send("draw it");
+
+  assert.deepEqual(conversation.messages[3].images, [{ kind: "images", id: 6 }]);
+});
+
+test("the spatial picture and the final picture have their own urls", () => {
+  const conversation = new Conversation(
+    { conceptImageUrl: (s, kind, id) => `http://api/${s}/${kind}${id === undefined ? "" : `/${id}`}` },
+    () => "s1",
+  );
+
+  assert.equal(conversation.imageUrl({ kind: "spatial" }), "http://api/s1/spatial");
+  assert.equal(conversation.imageUrl({ kind: "final" }), "http://api/s1/final");
+});
+
+const withFinalPicture = (extra = {}) => ({
+  step: 4,
+  detailedDesign: { details: [], latest_image_version: 6, is_validated: false },
+  ...extra,
+});
+
+test("the final version can be validated while a picture of step 4 is waiting for it", () => {
+  const conversation = new Conversation(fakeApi(), ids());
+  assert.equal(conversation.canValidateFinal, false); // nothing yet
+
+  Object.assign(conversation, withFinalPicture());
+  assert.equal(conversation.canValidateFinal, true);
+
+  Object.assign(conversation, withFinalPicture({ step: 3 }));
+  assert.equal(conversation.canValidateFinal, false); // another step
+
+  Object.assign(conversation, withFinalPicture({ detailedDesign: { details: [], latest_image_version: null, is_validated: false } }));
+  assert.equal(conversation.canValidateFinal, false); // no picture yet
+
+  Object.assign(conversation, withFinalPicture({ detailedDesign: { details: [], latest_image_version: 6, is_validated: true } }));
+  assert.equal(conversation.canValidateFinal, false); // already accepted
+});
+
+test("validateFinal sends the latest picture and keeps the validated design", async () => {
+  const validated = { details: [], latest_image_version: 6, is_validated: true };
+  const api = { ...fakeApi(), calls: [], async validateDetailedDesign(sessionId, version) {
+    this.calls.push({ sessionId, version });
+    return validated;
+  } };
+  const conversation = new Conversation(api, ids());
+  Object.assign(conversation, withFinalPicture());
+
+  assert.deepEqual(await conversation.validateFinal(), validated);
+
+  assert.deepEqual(api.calls, [{ sessionId: "session-1", version: 6 }]);
+  assert.deepEqual(conversation.detailedDesign, validated);
+  assert.equal(conversation.canValidateFinal, false);
+});
+
+test("a refused validation changes nothing so the button can be pressed again", async () => {
+  const api = { ...fakeApi(), async validateDetailedDesign() { throw new Error("no furniture"); } };
+  const conversation = new Conversation(api, ids());
+  Object.assign(conversation, withFinalPicture());
+
+  await assert.rejects(conversation.validateFinal(), /no furniture/);
+
+  assert.equal(conversation.detailedDesign.is_validated, false);
+  assert.equal(conversation.canValidateFinal, true);
+});
+
+test("a validation that comes back after a reset is dropped", async () => {
+  let answer;
+  const api = { ...fakeApi(), validateDetailedDesign: () => new Promise((resolve) => (answer = resolve)) };
+  const conversation = new Conversation(api, ids());
+  Object.assign(conversation, withFinalPicture());
+
+  const pending = conversation.validateFinal();
+  conversation.reset();
+  answer({ details: [], latest_image_version: 6, is_validated: true });
+
+  assert.equal(await pending, null);
+  assert.equal(conversation.detailedDesign, null);
+});

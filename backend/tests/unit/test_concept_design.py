@@ -246,3 +246,28 @@ def test_the_graph_builds_its_services_lazily(monkeypatch):
     graph = ConceptDesignGraph(llm=FakeLLM())
 
     assert (graph.prompt_service, graph.concept_service) == ("prompts", "concepts")
+
+
+def test_routes_serve_the_validated_pictures_of_steps_3_and_4(service):
+    session_id = uuid4()
+    service.spatial_b64 = b64(b"spatial")
+    service.final_b64 = b64(b"final")
+    client = TestClient(app)
+
+    spatial = client.get(f"/concept/{session_id}/spatial")
+    final = client.get(f"/concept/{session_id}/final")
+
+    assert (spatial.status_code, spatial.headers["content-type"], spatial.content) == (
+        200,
+        "image/png",
+        b"spatial",
+    )
+    assert final.content == b"final" and final.headers["cache-control"] == "no-cache"
+
+
+def test_the_pictures_of_steps_3_and_4_are_404_until_validated(service):
+    client = TestClient(app)
+    session_id = uuid4()
+
+    assert client.get(f"/concept/{session_id}/spatial").status_code == 404
+    assert client.get(f"/concept/{session_id}/final").status_code == 404

@@ -9,6 +9,7 @@ class Step(IntEnum):
     GATHER_INFORMATION = 1
     CONCEPT_DESIGN = 2
     SPATIAL_DESIGN = 3
+    DETAILED_DESIGN = 4
 
 
 def current_step(state: GraphState) -> Step:
@@ -22,4 +23,6 @@ def current_step(state: GraphState) -> Step:
         return Step.GATHER_INFORMATION
     if not state["concept_design"].is_validated:
         return Step.CONCEPT_DESIGN
-    return Step.SPATIAL_DESIGN
+    if not state["spatial_design"].is_validated:
+        return Step.SPATIAL_DESIGN
+    return Step.DETAILED_DESIGN

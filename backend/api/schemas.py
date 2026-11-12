@@ -109,6 +109,36 @@ class SpatialDesignResponse(BaseModel):
     )
 
 
+class DetailResponse(BaseModel):
+    """One design decision of the last step."""
+
+    name: str
+    category: str = Field(description="furniture, shape, material, color, lighting or accessory")
+    description: str
+    space: str | None = Field(description="Space it belongs to; null for the whole room")
+    quantity: int | None
+
+
+class DetailedDesignResponse(BaseModel):
+    """The details agreed so far (empty until the assistant proposes some)."""
+
+    details: list[DetailResponse]
+    latest_image_version: int | None = Field(
+        description="Latest picture of the details: GET /concept/{session_id}/images/{n}"
+    )
+    is_validated: bool = Field(
+        description="True once the user accepted the details with a picture: the final design"
+    )
+
+
+class ValidateDetailedDesignRequest(BaseModel):
+    """Which picture of the last step the user accepts."""
+
+    version: int | None = Field(
+        default=None, ge=1, description="Picture version to keep. Default: the latest one"
+    )
+
+
 class ChatResponse(BaseModel):
     """The assistant's reply, with the session to reuse on the next turn."""
 
@@ -120,3 +150,4 @@ class ChatResponse(BaseModel):
     information: InformationResponse
     concept: ConceptResponse
     spatial_design: SpatialDesignResponse
+    detailed_design: DetailedDesignResponse

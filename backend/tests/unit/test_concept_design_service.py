@@ -171,14 +171,32 @@ def test_validating_a_missing_version_raises():
         ConceptDesignService(client=FakeClient(None)).validate_concept(uuid4(), 2)
 
 
-def test_get_validated_image():
-    assert (
-        ConceptDesignService(client=FakeClient({"concept_image": "QUJD"})).get_validated_image(
-            uuid4()
-        )
-        == "QUJD"
-    )
+def test_get_validated_image_reads_the_column_of_the_step():
+    client = FakeClient({"image": "QUJD"})
+    service = ConceptDesignService(client=client)
+
+    assert service.get_validated_image(uuid4()) == "QUJD"
+    assert service.get_validated_image(uuid4(), step=3) == "QUJD"
+    assert service.get_validated_image(uuid4(), step=4) == "QUJD"
+
+    concept, spatial, final = (sql for sql, _ in client.queries)
+    assert "concept_image AS image" in concept and "AND concept_design_validated" in concept
+    assert "spatial_image AS image" in spatial and "AND spatial_design_validated" in spatial
+    assert "final_image AS image" in final and "AND detailed_design_validated" in final
     assert ConceptDesignService(client=FakeClient(None)).get_validated_image(uuid4()) is None
+
+
+def test_a_picture_of_step_4_reopens_the_detailed_design_only():
+    client = FakeClient(row={"version": 8})
+    session_id = uuid4()
+
+    ConceptDesignService(client=client).add_concept_image(session_id, "QUJD", "p", step=4)
+
+    assert client.queries[0][1] == (session_id, "QUJD", "p", 4, session_id)
+    update = client.queries[1][0]
+    assert "final_image = NULL" in update and "detailed_design_validated = FALSE" in update
+    # The earlier steps stay validated: the session must not fall back to them.
+    assert "concept" not in update and "spatial" not in update
 
 
 def test_shared_service_is_cached():

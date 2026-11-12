@@ -8,6 +8,7 @@ from backend.api.schemas import (
     ChatRequest,
     ChatResponse,
     ConceptResponse,
+    DetailedDesignResponse,
     InformationResponse,
     SpatialDesignResponse,
 )
@@ -50,4 +51,5 @@ def chat(body: ChatRequest) -> ChatResponse:
         information=InformationResponse(**asdict(state["information"])),
         concept=ConceptResponse(**asdict(state["concept_design"])),
         spatial_design=SpatialDesignResponse(**asdict(state["spatial_design"])),
+        detailed_design=DetailedDesignResponse(**asdict(state["detailed_design"])),
     )

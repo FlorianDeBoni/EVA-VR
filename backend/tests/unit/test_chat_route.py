@@ -11,6 +11,7 @@ from backend.api.routes import chat as route
 from backend.services.chatService import ChatService
 from backend.services.errors import PromptNotFoundError
 from backend.src.graph.tools.concept_design.schemas import ConceptDesign
+from backend.src.graph.tools.detailed_design.schemas import Detail, DetailCategory, DetailedDesign
 from backend.src.graph.tools.gather_information.schemas import InformationToGather
 from backend.src.graph.tools.spatial_design.schemas import (
     Relationship,
@@ -28,6 +29,11 @@ SPATIAL = SpatialDesign(
     is_validated=False,
     latest_image_version=3,
 )
+DETAILED = DetailedDesign(
+    details=[Detail("Round table", DetailCategory.FURNITURE, "oak, 6 seats", "Lab", 2)],
+    is_validated=False,
+    latest_image_version=5,
+)
 INFO = InformationToGather(
     user_type="architects",
     number_of_users=5,
@@ -41,7 +47,15 @@ INFO = InformationToGather(
 class FakeChatService:
     """Records the calls of the route; `session_id` is what ensure_session returns."""
 
-    def __init__(self, session_id=None, error=None, information=INFO, concept_validated=False):
+    def __init__(
+        self,
+        session_id=None,
+        error=None,
+        information=INFO,
+        concept_validated=False,
+        spatial_validated=False,
+    ):
+        self.spatial = replace(SPATIAL, is_validated=spatial_validated)
         self.information = information
         self.concept = replace(CONCEPT, is_validated=concept_validated)
         self.session_id = session_id or uuid4()
@@ -62,7 +76,8 @@ class FakeChatService:
             "session_id": session_id,
             "information": self.information,
             "concept_design": self.concept,
-            "spatial_design": SPATIAL,
+            "spatial_design": self.spatial,
+            "detailed_design": DETAILED,
         }
 
 
@@ -126,6 +141,19 @@ def test_chat_runs_the_agent_and_returns_reply_session_and_information(monkeypat
             }
         ],
         "latest_image_version": 3,
+        "is_validated": False,
+    }
+    assert body["detailed_design"] == {
+        "details": [
+            {
+                "name": "Round table",
+                "category": "furniture",
+                "description": "oak, 6 seats",
+                "space": "Lab",
+                "quantity": 2,
+            }
+        ],
+        "latest_image_version": 5,
         "is_validated": False,
     }
     assert str(service.ensured) == known
@@ -243,3 +271,15 @@ def test_chat_answers_step_3_once_the_concept_is_validated(monkeypatch):
     response = _post(monkeypatch, service, {"messages": []})
 
     assert response.json()["step"] == 3
+
+
+def test_chat_answers_step_4_once_the_spatial_design_is_validated(monkeypatch):
+    service = FakeChatService(
+        information=replace(INFO, is_validated=True),
+        concept_validated=True,
+        spatial_validated=True,
+    )
+
+    response = _post(monkeypatch, service, {"messages": []})
+
+    assert response.json()["step"] == 4

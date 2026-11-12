@@ -1,0 +1,10 @@
+html, body { margin: 0; height: 100%; background: #000; }
+
+/* The picture fills the window, whole, never cropped or stretched. */
+#final { display: block; width: 100vw; height: 100vh; object-fit: contain; }
+
+#message {
+  position: fixed; inset: 0; display: grid; place-items: center; margin: 0;
+  color: #8b95ad; font: 1rem system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center;
+}
+#message[hidden] { display: none; }

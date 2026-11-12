@@ -11,13 +11,21 @@ from backend.src.graph import graph as graph_module
 from backend.src.graph.graph import MainGraph
 from backend.src.graph.state import GraphState
 from backend.src.graph.subgraphs.concept_design.graph import ConceptDesignGraph
+from backend.src.graph.subgraphs.detailed_design.graph import DetailedDesignGraph
 from backend.src.graph.subgraphs.information_gathering.graph import InformationGatheringGraph
 from backend.src.graph.subgraphs.spatial_design.graph import SpatialDesignGraph
 from backend.src.graph.tools.concept_design import tool as concept_tools
 from backend.src.graph.tools.concept_design.schemas import ConceptDesign
+from backend.src.graph.tools.detailed_design.schemas import DetailedDesign
 from backend.src.graph.tools.gather_information import tool as tools
 from backend.src.graph.tools.gather_information.schemas import InformationToGather
-from backend.src.graph.tools.spatial_design.schemas import SpatialDesign
+from backend.src.graph.tools.spatial_design import tool as spatial_tools
+from backend.src.graph.tools.spatial_design.schemas import (
+    Relationship,
+    RelationType,
+    Space,
+    SpatialDesign,
+)
 
 EMPTY = InformationToGather(
     user_type="",
@@ -33,6 +41,14 @@ NO_CONCEPT = ConceptDesign(reference_count=0, latest_version=None, is_validated=
 
 
 NO_SPATIAL = SpatialDesign(spaces=[], relationships=[], is_validated=False)
+NO_DETAILS = DetailedDesign(details=[], is_validated=False)
+
+
+class FakeDetailedService:
+    """Stands in for DetailedDesignService: nothing done yet."""
+
+    def get_detailed_design(self, session_id):
+        return NO_DETAILS
 
 
 class FakeSpatialService:
@@ -45,7 +61,7 @@ class FakeSpatialService:
 class FakeConceptService:
     """Stands in for ConceptDesignService: nothing done yet."""
 
-    def get_validated_image(self, session_id):
+    def get_validated_image(self, session_id, step=2):
         return None
 
     def get_concept_design(self, session_id):
@@ -101,6 +117,7 @@ def _state(session_id=None, text="hi"):
         "information": EMPTY,
         "concept_design": NO_CONCEPT,
         "spatial_design": NO_SPATIAL,
+        "detailed_design": NO_DETAILS,
     }
 
 
@@ -144,10 +161,16 @@ def test_default_subgraphs_register_one_graph_per_step(monkeypatch):
         "get_spatial_design_graph",
         lambda: type("G", (), {"graph": "spatial"})(),
     )
+    monkeypatch.setattr(
+        graph_module,
+        "get_detailed_design_graph",
+        lambda: type("G", (), {"graph": "detailed"})(),
+    )
     assert MainGraph().subgraphs == {
         "gather_information": sentinel,
         "concept_design": "concept",
         "spatial_design": "spatial",
+        "detailed_design": "detailed",
     }
 
 
@@ -250,6 +273,7 @@ def test_run_passes_the_state_to_the_main_graph():
         database_service=FakeDatabase(),
         concept_service=FakeConceptService(),
         spatial_service=FakeSpatialService(),
+        detailed_service=FakeDetailedService(),
     ).run(state)
 
     assert graph.seen is state
@@ -264,6 +288,7 @@ def test_chat_builds_the_state_from_the_session():
         database_service=FakeDatabase(session_id),
         concept_service=FakeConceptService(),
         spatial_service=FakeSpatialService(),
+        detailed_service=FakeDetailedService(),
     )
     messages = [HumanMessage("hello")]
 
@@ -275,6 +300,7 @@ def test_chat_builds_the_state_from_the_session():
         "information": EMPTY,
         "concept_design": NO_CONCEPT,
         "spatial_design": NO_SPATIAL,
+        "detailed_design": NO_DETAILS,
     }
     assert result["messages"][-1].content == "reply"
 
@@ -286,6 +312,7 @@ def test_chat_unknown_session_raises_before_running_the_graph():
         database_service=FakeDatabase(uuid4()),
         concept_service=FakeConceptService(),
         spatial_service=FakeSpatialService(),
+        detailed_service=FakeDetailedService(),
     )
 
     with pytest.raises(SessionNotFoundError):
@@ -311,6 +338,7 @@ def test_chat_end_to_end_with_the_real_main_graph(monkeypatch):
         database_service=db,
         concept_service=FakeConceptService(),
         spatial_service=FakeSpatialService(),
+        detailed_service=FakeDetailedService(),
     ).chat(session_id, [HumanMessage("kids")])
 
     assert state["messages"][-1].content == "How many of you?"
@@ -327,6 +355,12 @@ def test_chat_service_builds_its_concept_service_lazily(monkeypatch):
     monkeypatch.setattr(chat_module, "get_concept_design_service", lambda: "concepts")
 
     assert ChatService(graph=FakeGraph()).concept_service == "concepts"
+
+
+def test_chat_service_builds_its_detailed_service_lazily(monkeypatch):
+    monkeypatch.setattr(chat_module, "get_detailed_design_service", lambda: "detailed")
+
+    assert ChatService(graph=FakeGraph()).detailed_service == "detailed"
 
 
 def test_chat_service_builds_its_spatial_service_lazily(monkeypatch):
@@ -394,3 +428,86 @@ def test_a_session_at_step_3_goes_straight_to_the_spatial_design():
     result = main.invoke(state)
 
     assert result["messages"][-1].content == "Which activities need their own space?"
+
+
+def _detailed_subgraph(llm):
+    return DetailedDesignGraph(
+        llm=llm, prompt_service=FakePrompts(), concept_service=FakeConceptService()
+    ).graph
+
+
+def test_router_picks_detailed_design_once_the_spatial_design_is_validated():
+    state = {
+        **_state(),
+        "information": replace(EMPTY, is_validated=True),
+        "concept_design": replace(NO_CONCEPT, is_validated=True),
+        "spatial_design": replace(NO_SPATIAL, is_validated=True),
+    }
+
+    assert MainGraph(subgraphs={}).route(state) == "detailed_design"
+
+
+def test_validating_the_spatial_design_continues_with_the_details_in_the_same_turn(monkeypatch):
+    class Spatial:
+        validated = None
+
+        def validate(self, session_id, version):
+            self.validated = version
+
+    service = Spatial()
+    monkeypatch.setattr(spatial_tools, "get_spatial_design_service", lambda: service)
+    spatial_llm = FakeLLM(
+        AIMessage(
+            content="", tool_calls=[{"name": "validate_spatial_design", "args": {}, "id": "c1"}]
+        )
+    )
+    detailed_llm = FakeLLM(AIMessage(content="Last step: the details."))
+    pictured = SpatialDesign(
+        [Space("Lab", "build"), Space("Lounge", "rest")],
+        [Relationship("Lab", "Lounge", RelationType.ADJACENT, "")],
+        False,
+        latest_image_version=3,
+    )
+    main = MainGraph(
+        subgraphs={
+            "gather_information": _subgraph(FakeLLM()),
+            "concept_design": _concept_subgraph(FakeLLM()),
+            "spatial_design": _spatial_subgraph(spatial_llm),
+            "detailed_design": _detailed_subgraph(detailed_llm),
+        }
+    ).graph
+    state = {
+        **_state(),
+        "information": replace(EMPTY, is_validated=True),
+        "concept_design": replace(NO_CONCEPT, is_validated=True),
+        "spatial_design": pictured,
+    }
+
+    result = main.invoke(state)
+
+    assert service.validated == 3
+    assert result["spatial_design"].is_validated is True
+    assert result["messages"][-1].content == "Last step: the details."
+
+
+def test_a_session_at_step_4_stays_in_the_detailed_design_after_its_validation():
+    detailed_llm = FakeLLM(AIMessage(content="Your final room is saved."))
+    main = MainGraph(
+        subgraphs={
+            "gather_information": _subgraph(FakeLLM()),
+            "concept_design": _concept_subgraph(FakeLLM()),
+            "spatial_design": _spatial_subgraph(FakeLLM()),
+            "detailed_design": _detailed_subgraph(detailed_llm),
+        }
+    ).graph
+    state = {
+        **_state(),
+        "information": replace(EMPTY, is_validated=True),
+        "concept_design": replace(NO_CONCEPT, is_validated=True),
+        "spatial_design": replace(NO_SPATIAL, is_validated=True),
+        "detailed_design": replace(NO_DETAILS, is_validated=True),
+    }
+
+    result = main.invoke(state)
+
+    assert result["messages"][-1].content == "Your final room is saved."

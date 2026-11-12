@@ -5,6 +5,7 @@ from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
 
 from backend.src.graph.tools.concept_design.schemas import ConceptDesign
+from backend.src.graph.tools.detailed_design.schemas import DetailedDesign
 from backend.src.graph.tools.gather_information.schemas import InformationToGather
 from backend.src.graph.tools.spatial_design.schemas import SpatialDesign
 
@@ -21,3 +22,5 @@ class GraphState(TypedDict):
     concept_design: ConceptDesign
     # The spatial design draft (and its validation); kept in sync with the database by its tools.
     spatial_design: SpatialDesign
+    # The detailed design draft (and its validation); kept in sync with the database by its tools.
+    detailed_design: DetailedDesign

@@ -25,7 +25,8 @@ class ConceptDesignService:
     - `concept_images`: every AI-generated image (the next ones iterate on them). Step 2 makes
       the concept, step 3 makes refined versions of it; `step` tells them apart and the
       version numbers keep counting up across both,
-    - `session.concept_image` + `concept_design_validated`: only the validated concept.
+    - `session.concept_image` + `concept_design_validated`: only the validated concept. The
+      validated pictures of steps 3 and 4 are in `spatial_image` and `final_image`.
     Images are stored as base64 text. The DatabaseClient is created lazily from the env.
     """
 
@@ -36,6 +37,17 @@ class ConceptDesignService:
         "UPDATE session SET spatial_image = NULL, spatial_design = NULL,"
         " spatial_design_validated = FALSE WHERE id = %s"
     )
+    REOPEN_STEP_4 = (
+        "UPDATE session SET final_image = NULL, detailed_design = NULL,"
+        " detailed_design_validated = FALSE WHERE id = %s"
+    )
+    REOPEN = {2: REOPEN_STEP_2, 3: REOPEN_STEP_3, 4: REOPEN_STEP_4}
+    # Where each step keeps its validated picture in the session row: (image, flag) columns.
+    VALIDATED_IMAGE = {
+        2: ("concept_image", "concept_design_validated"),
+        3: ("spatial_image", "spatial_design_validated"),
+        4: ("final_image", "detailed_design_validated"),
+    }
 
     def __init__(self, client: DatabaseClient | None = None) -> None:
         self._client = client
@@ -132,8 +144,9 @@ class ConceptDesignService:
     ) -> int:
         """Store a new image generated in `step` and return its version (1, 2, 3...).
 
-        A new image reopens the step that made it: in step 2 the validated concept of the
-        session is cleared, in step 3 the validated spatial design and its picture.
+        A new image reopens the step that made it, and only that one: in step 2 the validated
+        concept of the session is cleared, in step 3 the validated spatial design and its
+        picture, in step 4 the validated detailed design and its final picture.
 
         Raises:
             SessionNotFoundError: If no session has this id.
@@ -147,7 +160,7 @@ class ConceptDesignService:
                     (session_id, image_b64, prompt, step, session_id),
                 ).fetchone()
                 conn.execute(
-                    self.REOPEN_STEP_2 if step == 2 else self.REOPEN_STEP_3,
+                    self.REOPEN[step],
                     (session_id,),
                 )
         except psycopg.errors.ForeignKeyViolation as exc:
@@ -190,14 +203,18 @@ class ConceptDesignService:
         if row is None:
             raise ConceptImageNotFoundError(f"session {session_id} has no concept image v{version}")
 
-    def get_validated_image(self, session_id: UUID) -> str | None:
-        """Return the base64 of the validated concept, or None."""
+    def get_validated_image(self, session_id: UUID, step: int = 2) -> str | None:
+        """Return the base64 of the picture the user validated in `step`, or None.
+
+        Step 2: the concept, step 3: the spatial picture, step 4: the final picture.
+        """
+        image, flag = self.VALIDATED_IMAGE[step]  # fixed column names, never user input
         with self.client.connection() as conn:
             row = conn.execute(
-                "SELECT concept_image FROM session WHERE id = %s AND concept_design_validated",
+                f"SELECT {image} AS image FROM session WHERE id = %s AND {flag}",  # noqa: S608
                 (session_id,),
             ).fetchone()
-        return row["concept_image"] if row else None
+        return row["image"] if row else None
 
 
 @lru_cache(maxsize=1)

@@ -7,6 +7,7 @@ from langgraph.graph.state import CompiledStateGraph
 from backend.src.graph.state import GraphState
 from backend.src.graph.steps import Step, current_step
 from backend.src.graph.subgraphs.concept_design.graph import get_concept_design_graph
+from backend.src.graph.subgraphs.detailed_design.graph import get_detailed_design_graph
 from backend.src.graph.subgraphs.information_gathering.graph import (
     get_information_gathering_graph,
 )
@@ -25,7 +26,8 @@ class MainGraph:
 
     1. `gather_information` until the user validated the information,
     2. `concept_design` until the user validated the concept,
-    3. `spatial_design` after that.
+    3. `spatial_design` until the user validated the spatial design and its picture,
+    4. `detailed_design` after that: the last step.
 
     `route` picks the subgraph of the current step (`current_step`). A step that gets
     validated ends its subgraph, and the next step starts in the very same turn
@@ -38,11 +40,13 @@ class MainGraph:
     DEFAULT_ROUTE = "gather_information"
     CONCEPT_DESIGN_ROUTE = "concept_design"
     SPATIAL_DESIGN_ROUTE = "spatial_design"
+    DETAILED_DESIGN_ROUTE = "detailed_design"
     # The subgraph that handles each step.
     STEP_ROUTES: ClassVar[dict[Step, str]] = {
         Step.GATHER_INFORMATION: DEFAULT_ROUTE,
         Step.CONCEPT_DESIGN: CONCEPT_DESIGN_ROUTE,
         Step.SPATIAL_DESIGN: SPATIAL_DESIGN_ROUTE,
+        Step.DETAILED_DESIGN: DETAILED_DESIGN_ROUTE,
     }
 
     def __init__(self, subgraphs: dict[str, CompiledStateGraph] | None = None) -> None:
@@ -58,6 +62,7 @@ class MainGraph:
                 self.DEFAULT_ROUTE: get_information_gathering_graph().graph,
                 self.CONCEPT_DESIGN_ROUTE: get_concept_design_graph().graph,
                 self.SPATIAL_DESIGN_ROUTE: get_spatial_design_graph().graph,
+                self.DETAILED_DESIGN_ROUTE: get_detailed_design_graph().graph,
             }
         return self._subgraphs
 

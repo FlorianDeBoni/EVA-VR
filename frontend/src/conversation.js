@@ -1,5 +1,10 @@
 /** Names of the workshop steps, by step number - 1 (the API only sends the number). */
-export const STEPS = ["Gathering information", "Concept design", "Spatial design"];
+export const STEPS = [
+  "Gathering information",
+  "Concept design",
+  "Spatial design",
+  "Detailed design",
+];
 
 /**
  * The images a reply brings: the references when they were just (re)searched, and the
@@ -37,7 +42,8 @@ export class Conversation {
     this.information = null; // what the agent has gathered so far
     this.step = null; // number of the workshop step, known after the first reply
     this.concept = null; // concept design progress: { reference_count, latest_version, ... }
-    this.spatialDesign = null; // { spaces, relationships, is_validated }
+    this.spatialDesign = null; // { spaces, relationships, latest_image_version, is_validated }
+    this.detailedDesign = null; // { details, latest_image_version, is_validated }
   }
 
   /**
@@ -56,6 +62,31 @@ export class Conversation {
    */
   send(text) {
     return this._exchange([...this.messages, { role: "user", content: text }]);
+  }
+
+  /** Whether the final picture can be validated with the button: a picture, not yet accepted. */
+  get canValidateFinal() {
+    return (
+      this.step === 4 &&
+      Boolean(this.detailedDesign?.latest_image_version) &&
+      !this.detailedDesign.is_validated
+    );
+  }
+
+  /**
+   * Accept the latest picture of the last step as the final design, without going through the
+   * chat. Returns the validated design, or null if the conversation was reset while waiting.
+   * On error nothing changes, so the button can be pressed again.
+   */
+  async validateFinal() {
+    const sessionId = this.sessionId;
+    const version = this.detailedDesign.latest_image_version;
+
+    const design = await this.api.validateDetailedDesign(sessionId, version);
+
+    if (this.sessionId !== sessionId) return null;
+    this.detailedDesign = design;
+    return design;
   }
 
   /** URL of an image shown in a message (see `newImages`), for an <img>. */
@@ -85,6 +116,7 @@ export class Conversation {
     this.step = body.step ?? null;
     this.concept = body.concept ?? null;
     this.spatialDesign = body.spatial_design ?? null;
+    this.detailedDesign = body.detailed_design ?? null;
     this.messages = [
       ...history,
       { role: "assistant", content: body.reply, ...(images.length && { images }) },

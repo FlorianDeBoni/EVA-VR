@@ -6,6 +6,10 @@ from langgraph.graph.state import CompiledStateGraph
 
 from backend.services.conceptDesignService import ConceptDesignService, get_concept_design_service
 from backend.services.databaseService import DatabaseService, get_database_service
+from backend.services.detailedDesignService import (
+    DetailedDesignService,
+    get_detailed_design_service,
+)
 from backend.services.spatialDesignService import SpatialDesignService, get_spatial_design_service
 from backend.src.graph.graph import get_main_graph
 from backend.src.graph.state import GraphState
@@ -30,11 +34,13 @@ class ChatService:
         database_service: DatabaseService | None = None,
         concept_service: ConceptDesignService | None = None,
         spatial_service: SpatialDesignService | None = None,
+        detailed_service: DetailedDesignService | None = None,
     ) -> None:
         self._graph = graph
         self._database_service = database_service
         self._concept_service = concept_service
         self._spatial_service = spatial_service
+        self._detailed_service = detailed_service
         self.logger = LogManager.get_logger(__name__)
 
     @property
@@ -61,6 +67,12 @@ class ChatService:
             self._spatial_service = get_spatial_design_service()
         return self._spatial_service
 
+    @property
+    def detailed_service(self) -> DetailedDesignService:
+        if self._detailed_service is None:
+            self._detailed_service = get_detailed_design_service()
+        return self._detailed_service
+
     def run(self, state: GraphState) -> GraphState:
         """Pass `state` to the main graph and return the resulting state."""
         return self.graph.invoke(state)
@@ -86,7 +98,8 @@ class ChatService:
 
         Returns:
             The final state: its last message is the assistant's reply and its
-            `information`, `concept_design` and `spatial_design` are up to date with the database.
+            `information`, `concept_design`, `spatial_design` and `detailed_design` are up to
+            date with the database.
 
         Raises:
             SessionNotFoundError: If no session has this id.
@@ -97,6 +110,7 @@ class ChatService:
             "information": self.database_service.get_information(session_id),
             "concept_design": self.concept_service.get_concept_design(session_id),
             "spatial_design": self.spatial_service.get_spatial_design(session_id),
+            "detailed_design": self.detailed_service.get_detailed_design(session_id),
         }
         self.logger.info("Chat turn for session %s (%d messages)", session_id, len(messages))
         return self.run(state)

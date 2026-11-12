@@ -7,6 +7,7 @@ from openai import BadRequestError
 
 from backend.src.graph.steps import Step, current_step
 from backend.src.graph.tools.concept_design.schemas import ConceptDesign, ConceptImage
+from backend.src.graph.tools.detailed_design.schemas import DetailedDesign
 from backend.src.graph.tools.gather_information.schemas import InformationToGather
 from backend.src.graph.tools.generate_image import tool as tool_module
 from backend.src.graph.tools.generate_image.tool import generate_image
@@ -38,6 +39,17 @@ def step2(concept=NOTHING):
         "information": INFO,
         "concept_design": concept,
         "spatial_design": EMPTY,
+    }
+
+
+def step4(latest=None, picture=None):
+    """A session in step 4: the concept and the spatial design were validated."""
+    return {
+        "session_id": uuid4(),
+        "information": INFO,
+        "concept_design": ConceptDesign(3, latest, True),
+        "spatial_design": SpatialDesign([], [], True, latest_image_version=3),
+        "detailed_design": DetailedDesign([], False, latest_image_version=picture),
     }
 
 
@@ -151,6 +163,7 @@ def test_a_refused_or_empty_generation_is_reported_to_the_model(service, monkeyp
 def test_the_state_tells_which_step_the_tool_works_for():
     assert current_step(step2()) is Step.CONCEPT_DESIGN
     assert current_step(step3()) is Step.SPATIAL_DESIGN
+    assert current_step(step4()) is Step.DETAILED_DESIGN
 
 
 def test_the_first_picture_of_step_3_refines_the_validated_concept(service, generator):
@@ -273,3 +286,89 @@ def test_a_lower_limit_in_the_settings_still_applies(service, generator):
 
     # The picture to iterate on is the one kept; the concept anchor is dropped first.
     assert [i.data for i in generator.calls[0][1]] == [b"p1"]
+
+
+# ---- step 4: the final picture
+
+
+def test_the_first_picture_of_step_4_refines_the_validated_spatial_picture(service, generator):
+    service.concept_b64 = b64(b"concept")
+    service.spatial_b64 = b64(b"spatial")
+    # Steps 2 and 3 made versions 1 to 3: they are not what step 4 iterates on.
+    service.versions = [image(1, b"v1"), image(2, b"v2"), image(3, b"v3")]
+    service.steps = {3: 3}
+
+    command = generate_image.func(
+        state=step4(latest=3), tool_call_id="c1", prompt="Same room with oak round tables"
+    )
+
+    prompt, past = generator.calls[0]
+    # The spatial picture, not the concept: the layout is what step 4 must keep.
+    assert [i.data for i in past] == [b"spatial"]
+    assert "Image 1: the validated picture of the spatial organization, to refine" in prompt
+    assert service.added == [("Same room with oak round tables", 4)]
+    update = command.update
+    assert update["detailed_design"].latest_image_version == 4
+    assert update["detailed_design"].is_validated is False
+    # Earlier steps stay validated: drawing in step 4 must not send the session back.
+    assert update["concept_design"] == ConceptDesign(3, 4, True)
+    assert "spatial_design" not in update
+
+
+def test_next_final_pictures_iterate_on_the_latest_and_keep_the_layout_as_anchor(
+    service, generator
+):
+    service.spatial_b64 = b64(b"spatial")
+    service.versions = [image(1, b"v1"), image(2, b"v2"), image(3, b"f1"), image(4, b"f2")]
+    service.steps = {2: 3, 3: 4, 4: 4}
+
+    command = generate_image.func(
+        state=step4(latest=4, picture=4), tool_call_id="c1", prompt="A warmer wood"
+    )
+
+    prompt, past = generator.calls[0]
+    assert [i.data for i in past] == [b"f2", b"spatial"]
+    assert "Image 1: the current picture (version 4)" in prompt
+    assert "Image 2: the validated picture of the spatial organization, whose layout" in prompt
+    assert command.update["detailed_design"].latest_image_version == 5
+    assert service.added == [("A warmer wood", 4)]
+
+
+def test_step_4_without_a_validated_spatial_picture_still_generates(service, generator):
+    generate_image.func(state=step4(), tool_call_id="c1", prompt="a room")
+
+    assert generator.calls == [("a room", [])]
+
+
+def test_a_failed_final_picture_changes_nothing(service, monkeypatch):
+    monkeypatch.setattr(
+        tool_module,
+        "get_image_generator_service",
+        lambda: FakeGenerator(ImageGenerationError("empty")),
+    )
+
+    command = generate_image.func(state=step4(), tool_call_id="c1", prompt="p")
+
+    assert "detailed_design" not in command.update and service.versions == []
+
+
+def test_iterating_the_final_picture_many_times_never_sends_more_than_three_images(
+    service, generator
+):
+    service.spatial_b64 = b64(b"spatial")
+    version, sent = None, []
+
+    for _ in range(12):
+        state = step4()
+        if version is not None:
+            state["concept_design"] = ConceptDesign(3, version, True)
+            state["detailed_design"] = DetailedDesign([], False, latest_image_version=version)
+        command = generate_image.func(
+            state=state, tool_call_id="c1", prompt="again", reference_numbers=[]
+        )
+        version = command.update["concept_design"].latest_version
+        sent.append([i.data for i in generator.calls[-1][1]])
+
+    assert len(service.versions) == 12
+    assert all(len(images) <= 3 for images in sent)
+    assert all(images.count(b"generated") <= 1 for images in sent)

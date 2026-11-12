@@ -80,3 +80,33 @@ test("conceptImageUrl builds the URL of each kind of concept image", () => {
   assert.equal(api.conceptImageUrl("s1", "images", 3), "http://api.test/concept/s1/images/3");
   assert.equal(api.conceptImageUrl("s1", "validated"), "http://api.test/concept/s1/validated");
 });
+
+test("validateDetailedDesign posts the picture version and returns the validated design", async () => {
+  const calls = [];
+  const design = { details: [], latest_image_version: 6, is_validated: true };
+  const api = createApi("http://api.test", async (url, init) => {
+    calls.push({ url, init });
+    return json(200, design);
+  });
+
+  assert.deepEqual(await api.validateDetailedDesign("s1", 6), design);
+
+  assert.equal(calls[0].url, "http://api.test/detailed-design/s1/validate");
+  assert.equal(calls[0].init.method, "POST");
+  assert.deepEqual(JSON.parse(calls[0].init.body), { version: 6 });
+  // Without a version, the server keeps the latest picture.
+  await api.validateDetailedDesign("s1");
+  assert.deepEqual(JSON.parse(calls[0].init.body), { version: 6 });
+  assert.deepEqual(JSON.parse(calls.at(-1).init.body), { version: null });
+});
+
+test("validateDetailedDesign explains why the server refused", async () => {
+  const api = createApi("http://api.test", async () =>
+    json(409, { detail: "Cannot validate yet: no piece of furniture was recorded." }),
+  );
+
+  await assert.rejects(
+    api.validateDetailedDesign("s1", 6),
+    (error) => error.status === 409 && /no piece of furniture/.test(error.message),
+  );
+});

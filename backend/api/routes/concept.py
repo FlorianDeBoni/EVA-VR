@@ -39,3 +39,23 @@ def validated_concept(session_id: UUID) -> Response:
     return _image(
         get_concept_design_service().get_validated_image(session_id), "image/png", NO_CACHE
     )
+
+
+@router.get("/{session_id}/spatial", summary="The spatial picture validated by the user")
+def validated_spatial_picture(session_id: UUID) -> Response:
+    """The picture of the spatial organization the user accepted in step 3 (404 until then)."""
+    return _image(
+        get_concept_design_service().get_validated_image(session_id, step=3),
+        "image/png",
+        NO_CACHE,
+    )
+
+
+@router.get("/{session_id}/final", summary="The final picture validated by the user")
+def final_picture(session_id: UUID) -> Response:
+    """The final picture of the detailed design the user accepted in step 4 (404 until then)."""
+    return _image(
+        get_concept_design_service().get_validated_image(session_id, step=4),
+        "image/png",
+        NO_CACHE,
+    )

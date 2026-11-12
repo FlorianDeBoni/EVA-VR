@@ -407,13 +407,24 @@ def test_agent_draws_the_organization_then_asks_for_feedback(service, monkeypatc
     assert result["messages"][-1].content == "Here is the picture. What would you change?"
 
 
-def test_agent_validates_then_says_goodbye(service):
-    llm = FakeLLM(tool_call("validate_spatial_design"), AIMessage(content="Saved, thank you!"))
+def test_agent_stops_right_after_the_validation(service):
+    # The next step speaks next: the agent must not be called again after the validation.
+    llm = FakeLLM(tool_call("validate_spatial_design"))
 
     result = run(llm, PICTURED, text="yes, that's right")
 
     assert result["spatial_design"].is_validated is True
-    assert result["messages"][-1].content == "Saved, thank you!"
+    assert isinstance(result["messages"][-1], ToolMessage)
+    assert len(llm.calls) == 1
+
+
+def test_agent_keeps_talking_when_the_validation_is_refused(service):
+    llm = FakeLLM(tool_call("validate_spatial_design"), AIMessage(content="Let's draw it first."))
+
+    result = run(llm, DRAFT, text="yes")
+
+    assert result["spatial_design"].is_validated is False
+    assert result["messages"][-1].content == "Let's draw it first."
 
 
 @pytest.mark.parametrize(

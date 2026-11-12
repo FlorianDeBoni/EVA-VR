@@ -26,15 +26,26 @@ class FakeConceptService:
 
     `versions` are the generated images; `steps` says which step made each version
     (step 2 unless told otherwise). `validated` is the validated concept version, or
-    `concept_b64` can be set directly.
+    `concept_b64` can be set directly; `spatial_b64` and `final_b64` are the validated
+    pictures of steps 3 and 4.
     """
 
-    def __init__(self, references=(), versions=(), steps=None, concept_b64=None):
+    def __init__(
+        self,
+        references=(),
+        versions=(),
+        steps=None,
+        concept_b64=None,
+        spatial_b64=None,
+        final_b64=None,
+    ):
         self.references = list(references)
         self.versions = list(versions)
         self.steps = dict(steps or {})
         self.validated = None
         self.concept_b64 = concept_b64
+        self.spatial_b64 = spatial_b64
+        self.final_b64 = final_b64
         self.added = []
 
     def step_of(self, version):
@@ -79,7 +90,11 @@ class FakeConceptService:
             raise ConceptImageNotFoundError("missing")
         self.validated = version
 
-    def get_validated_image(self, session_id):
+    def get_validated_image(self, session_id, step=2):
+        if step == 3:
+            return self.spatial_b64
+        if step == 4:
+            return self.final_b64
         if self.concept_b64 is not None:
             return self.concept_b64
         if self.validated is None:

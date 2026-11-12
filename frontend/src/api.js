@@ -41,12 +41,25 @@ export function createApi(baseUrl, fetchImpl = (...args) => fetch(...args)) {
       return url(`/concept/${sessionId}/${kind}${id === undefined ? "" : `/${id}`}`);
     },
 
-    /** POST /chat -> { session_id, step, reply, information, concept, spatial_design } */
+    /** POST /chat -> { session_id, step, reply, information, concept, spatial_design, detailed_design } */
     chat(sessionId, messages) {
       return call("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, messages }),
+      });
+    },
+
+    /**
+     * POST /detailed-design/{session}/validate -> the detailed design, now validated.
+     * The final version without going through the chat. `version` defaults to the latest picture.
+     * Throws an ApiError (409) saying why when it cannot be validated yet.
+     */
+    validateDetailedDesign(sessionId, version) {
+      return call(`/detailed-design/${sessionId}/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version: version ?? null }),
       });
     },
 

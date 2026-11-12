@@ -64,19 +64,29 @@ main { flex: 1; min-height: 0; display: flex; gap: 12px; position: relative; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.8rem; background: var(--assistant); }
 .badge.validated { background: var(--ok); color: #04210c; }
 
-.concept, .spatial { width: 440px; flex: none; padding: 16px; overflow-y: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
-.concept h2, .spatial h2 { margin: 0 0 12px; font-size: 0.9rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
-.concept figure, .spatial figure { margin: 0 0 12px; }
-.concept figcaption, .spatial figcaption { color: var(--muted); font-size: 0.75rem; margin-bottom: 4px; }
-.concept img, .spatial img { margin-inline: auto; max-width: 100%; max-height: 50vh; width: auto; height: auto; border-radius: 8px; display: block; border: 1px solid var(--border); }
+.concept, .spatial, .detailed { width: 440px; flex: none; padding: 16px; overflow-y: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+.concept h2, .spatial h2, .detailed h2 { margin: 0 0 12px; font-size: 0.9rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.concept figure, .spatial figure, .detailed figure { margin: 0 0 12px; }
+.concept figcaption, .spatial figcaption, .detailed figcaption { color: var(--muted); font-size: 0.75rem; margin-bottom: 4px; }
+.concept img, .spatial img, .detailed img { margin-inline: auto; max-width: 100%; max-height: 50vh; width: auto; height: auto; border-radius: 8px; display: block; border: 1px solid var(--border); }
 .concept .references { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
 .concept .references figure { margin: 0; }
 
-.spatial h3 { margin: 16px 0 8px; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
-.spatial ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.spatial li { background: var(--assistant); border-radius: 8px; padding: 8px 12px; line-height: 1.4; }
-.spatial li small { display: block; color: var(--muted); }
+.spatial h3, .detailed h3 { margin: 16px 0 8px; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.spatial ul, .detailed ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.spatial li, .detailed li { background: var(--assistant); border-radius: 8px; padding: 8px 12px; line-height: 1.4; }
+.spatial li small, .detailed li small { display: block; color: var(--muted); }
 .spatial .relation { color: var(--accent); }
+
+.detailed .final { color: var(--ok); margin: 0 0 12px; }
+
+/* The button that appears once the final design is validated. */
+.vr-button {
+  background: var(--accent); color: #04142e; text-decoration: none; font-weight: 600;
+  border-radius: 8px; padding: 8px 16px;
+}
+.vr-button:hover { filter: brightness(1.1); }
+.validate-error { color: var(--ko); font-size: 0.8rem; max-width: 28ch; }
 
 .panel-tab {
   align-self: flex-start; flex: none; writing-mode: vertical-rl; padding: 14px 8px;
@@ -87,7 +97,7 @@ main { flex: 1; min-height: 0; display: flex; gap: 12px; position: relative; }
 
 /* On narrow screens the panel covers the chat instead of squeezing it. */
 @media (max-width: 900px) {
-  .information, .concept, .spatial {
+  .information, .concept, .spatial, .detailed {
     position: absolute; top: 0; bottom: 0; right: 40px; z-index: 1;
     width: min(440px, calc(100% - 52px));
   }

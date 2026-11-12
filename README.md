@@ -3,13 +3,14 @@
 A chatbot-led design workshop whose goal is to **imagine and design a room that boosts creativity**.
 The user talks to an assistant; the workshop moves through steps, and each step has its own
 assistant, its own prompt and its own tools. The assistant also speaks to the user through
-images (references, generated concepts).
+images (references, generated pictures), and the workshop ends with a final picture of the room.
 
 | Step | Name | Ends when | Stored in the database |
 |------|------|-----------|------------------------|
 | 1 | Information gathering | the user confirms the summary of their answers | the `session` row (`is_validated`) |
 | 2 | Concept design | the user accepts a generated concept image | `session.concept_image` + `concept_design_validated` |
 | 3 | Spatial design | the user accepts a picture of the spatial organization (spaces and how they relate) | `session.spatial_design` + `spatial_image` + `spatial_design_validated` |
+| 4 | Detailed design | the user accepts the final picture, with the furniture, shapes, materials and colors | `session.detailed_design` + `final_image` + `detailed_design_validated` |
 
 Everything below describes what each step does and why. For setup, jump to [Run it](#run-it).
 
@@ -35,8 +36,9 @@ Everything below describes what each step does and why. For setup, jump to [Run 
 ```
 START ──router (by current step)──► gather_information ─┐
                                     concept_design ◄────┤ each subgraph, once its step is
-                                    spatial_design ◄────┘ validated, hands over to the next
-                                          │               one in the same turn; otherwise END
+                                    spatial_design ◄────┤ validated, hands over to the next
+                                    detailed_design ◄───┘ one in the same turn; otherwise END
+                                          │
                                           ▼
                                          END
 ```
@@ -193,7 +195,7 @@ privacy), `circulation` (people move from one to the other).
    any relationship, without a picture, or **if the organization was changed after that picture**: the
    stored picture always matches the stored organization. In that case the assistant draws the current
    organization and asks once whether this new picture is right, since the user has not seen it. After
-   a successful validation it thanks the user and says the next steps will build on it.
+   a successful validation the step ends and writes nothing more: step 4 starts in the same turn.
 
 **Storage, like step 2:** the working draft is one row of `spatial_design_drafts` (JSON), replaced on
 every change. The pictures are rows of `concept_images` with `step = 3`; their version numbers keep
@@ -205,6 +207,64 @@ never touched by step 3.
 **Tools:** `update_spatial_design`, `generate_image` (the same tool as step 2), `validate_spatial_design`
 (one call at a time: each update rewrites the whole draft, each picture builds on the previous one).
 
+## Step 4: Detailed design
+
+**Assistant:** the last step. It starts from the picture the user validated in step 3 and keeps its
+layout: the spaces, their positions, their sizes and the point of view stay as they are, and only
+**minor details** change. The details are the **furniture** the creative task needs, then shapes,
+materials, colors, lighting and accessories. The step ends with a **final picture**: the spatial
+picture with all these details, an AI-generated image that is the final result of the workshop.
+**Prompt:** `detailed_design`. **Code:** `backend/src/graph/subgraphs/detailed_design/`.
+
+**What it produces:** a `DetailedDesign` and a picture of it.
+
+| Part | Content |
+|------|---------|
+| `details` | each has a `name`, a `category` (`furniture`, `shape`, `material`, `color`, `lighting`, `accessory`), a `description` (shape, material, color, why the task needs it), an optional `space` (a space of step 3, or none for the whole room) and, for furniture, a `quantity` |
+| picture | the validated spatial picture, with these details, in the same layout |
+
+**Behavior**, in the same shape as step 3:
+
+1. **Starting point.** The validated spatial picture is given to the model as an image input on every
+   call, with the step-1 information, the validated spaces and the current draft.
+2. **First draft.** With no detail yet, the assistant's first action is to record one
+   (`update_detailed_design`): the furniture each space needs to do its part of the task, plus a few
+   room-wide details (palette, main materials, lighting). It then thanks the user, says this is the last
+   step, presents the draft in a few lines and asks its first question.
+3. **Refining by questions.** One at a time, two at most: how people work in each space and so what
+   furniture, how many and how big; what must be movable; the tools within reach; the feel (soft or
+   sharp shapes, warm or cool materials, energizing colors); the light; the small touches. If the user
+   asks to move, resize, add or remove a space, the assistant says the organization was validated in the
+   previous step and brings the conversation back to the details.
+4. **Recording comes first.** Every change is saved with `update_detailed_design` before the reply. Each
+   call sends the complete list of details. The tool refuses a detail whose space does not exist in step
+   3 and duplicates (same name in the same space).
+5. **The final picture.** When the furniture is settled and the shapes, materials and colors are clear,
+   the assistant draws with `generate_image`: exactly the same room as the validated picture (same layout,
+   proportions, point of view), with the details listed space by space. The picture starts from the
+   validated spatial picture, so the layout is carried by the image itself.
+6. **Refining the picture.** Same as step 3: feedback may change the details (recorded first) or only the
+   drawing; each new picture iterates on the latest one and keeps the validated spatial picture as a
+   layout anchor, within the limit of 3 input images.
+7. **Validation, in two ways that follow the same rules.** The user can say it in the chat: light, as in
+   steps 2 and 3, handled by `validate_detailed_design`. Or they can click the **Validate final
+   version** button, which accepts the latest picture in one click with no round trip through the
+   chat (the assistant tells them about the button when it shows the first picture). Both refuse
+   without any piece of furniture, without a picture, or **if the details changed after that picture**
+   (`validation_problem` in `tools/detailed_design/rules.py`, plus the check in the database). After
+   the chat validation the assistant, as it is the last step, thanks the user, says that this is the
+   final version of the room and that the **Go to VR** button now shows it. After a click it says the
+   same in its next reply, without asking anything about validation. A change asked afterwards makes a
+   new picture, which reopens the validation.
+
+**Storage, like steps 2 and 3:** the working draft is one row of `detailed_design_drafts` (JSON). The
+pictures are rows of `concept_images` with `step = 4`, counting on from step 3's. Only the validated
+result is copied into the `session` row: `detailed_design`, `final_image` and
+`detailed_design_validated = TRUE`. Changing the draft or drawing a new picture afterwards reopens
+the validation and clears that copy, and never touches steps 2 and 3.
+
+**Tools:** `update_detailed_design`, `generate_image`, `validate_detailed_design`.
+
 ## Frontend
 
 A Vue app (`frontend/`) that calls the API straight from the browser.
@@ -213,20 +273,32 @@ A Vue app (`frontend/`) that calls the API straight from the browser.
   it is not sent). Replies show the **images they produced, stacked in one column**: the 3 references
   when found, and each new concept version. References replaced by a newer search disappear from older
   messages instead of showing the wrong images.
-- **Header** shows the current step (`Step 2/2 · Concept design`, from the API's `step`), the session
+- **Header** shows the current step (`Step 4/4 · Detailed design`, from the API's `step`), the session
   id, the API health and a *New conversation* button (new session id, empty history).
+- **Validate final version** button, in the header, appears in step 4 while there is a picture that was
+  not accepted yet. One click calls `POST /detailed-design/{session_id}/validate`; if the server
+  refuses (no furniture, details changed after the picture), the reason is shown next to the button.
+- **Go to VR** button, in the header, replaces it once the final design is validated, by the button or
+  by the assistant (`detailed_design.is_validated`). It opens `vr.html?session=<id>` in a new tab: a separate page
+  (`frontend/vr.html`) that shows the final picture alone, filling the window without cropping it.
+  It asks the API for `GET /concept/{session_id}/final`, and says so if there is no final picture yet.
 - **Side tab** (right edge) opens a panel for the current step: step 1 shows what was gathered so far;
   step 2 the references and the latest concept with a *draft / validated* badge; step 3 the refined picture, the
-  validated concept it starts from, the spaces and their relationships, with the same badge. It starts closed.
+  validated concept it starts from, the spaces and their relationships, with the same badge; step 4 the
+  latest picture, the spatial picture it starts from and the details grouped by category (*draft / final*).
+  It starts closed.
 
 ## API
 
 | Route | Purpose |
 |-------|---------|
-| `POST /chat` | Run one turn. Body: `session_id` (optional, created if missing) and `messages` (whole history, oldest first, ends with a user message; empty for the welcome). Answer: `session_id`, `step`, `reply`, `information`, `concept`, `spatial_design`. |
+| `POST /chat` | Run one turn. Body: `session_id` (optional, created if missing) and `messages` (whole history, oldest first, ends with a user message; empty for the welcome). Answer: `session_id`, `step`, `reply`, `information`, `concept`, `spatial_design`, `detailed_design`. |
 | `GET /concept/{session_id}/references/{1..3}` | A reference image (bytes). |
 | `GET /concept/{session_id}/images/{version}` | A generated concept image (bytes, never changes). |
-| `GET /concept/{session_id}/validated` | The validated concept (404 until validated). |
+| `GET /concept/{session_id}/validated` | The concept validated in step 2 (404 until validated). |
+| `GET /concept/{session_id}/spatial` | The spatial picture validated in step 3 (404 until validated). |
+| `POST /detailed-design/{session_id}/validate` | Accepts a picture of step 4 as the final design without the chat (body `{version}`, default the latest). Same rules as the assistant's tool; `409` with the reason when it cannot be validated yet. Returns the validated `detailed_design`. |
+| `GET /concept/{session_id}/final` | The final picture validated in step 4, shown by the VR page (404 until validated). |
 | `POST /speech/transcribe` | Speech to text (OpenAI proxy). |
 | `GET /health/live`, `/health/ready` | Probes. |
 
@@ -241,9 +313,11 @@ the assistant drafts it; the picture is `GET /concept/{session_id}/images/{lates
 |----------------|---------|
 | `session` | one row per conversation: the step-1 fields and `is_validated`; `concept_image` (base64 of the validated concept) and `concept_design_validated` |
 | `concept_reference_images` | the 3 web images of the session (`position`, base64, title, source and page URLs) |
-| `concept_images` | every generated image of steps 2 and 3 (`version` 1, 2, 3… counting across both, `step`, base64, the prompt that made it) |
+| `concept_images` | every generated image of steps 2, 3 and 4 (`version` 1, 2, 3… counting across both, `step`, base64, the prompt that made it) |
 | `session.spatial_design` / `spatial_image` / `spatial_design_validated` | the validated spatial design (JSON), its picture (base64) and the flag |
 | `spatial_design_drafts` | the working spatial design of the session, one row, replaced on every change |
+| `session.detailed_design` / `final_image` / `detailed_design_validated` | the validated detailed design (JSON), the final picture (base64) and the flag |
+| `detailed_design_drafts` | the working detailed design of the session, one row, replaced on every change |
 
 Init scripts are in `infrastructure/database/init/`. Docker only runs them when the database volume is
 first created, so `task dev:database` (run by `task start` and `task restart`) also applies them all to
@@ -296,10 +370,10 @@ backend/
     steps.py           Step enum and current_step()
     state.py           GraphState shared by every subgraph
     subgraphs/         one folder per step (information_gathering, concept_design,
-                       spatial_design)
+                       spatial_design, detailed_design)
     tools/             tools of the agents (gather_information, search_web_images,
-                       generate_image, concept_design, spatial_design)
-frontend/              Vue app
+                       generate_image, concept_design, spatial_design, detailed_design)
+frontend/              Vue app: index.html (the workshop) and vr.html (the final picture, full screen)
 infrastructure/        Docker services, database init scripts, Langfuse prompts
 ```
 
