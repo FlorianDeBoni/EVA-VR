@@ -1,6 +1,6 @@
 version: "3"
 
-dotenv: [".env.backend"]
+dotenv: ["backend/.env.backend"]
 
 # Docker tasks (dev:backend, dev:langfuse, docker:stop, docker:delete) live in infrastructure/
 includes:

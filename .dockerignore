@@ -10,5 +10,5 @@ coverage.xml
 *.ipynb
 
 # Secrets and local settings never go into an image
-.env*
+**/.env*
 infrastructure

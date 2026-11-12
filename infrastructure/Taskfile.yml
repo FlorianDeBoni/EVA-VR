@@ -5,7 +5,7 @@ version: "3"
 vars:
   LANGFUSE_COMPOSE: docker compose --env-file .env.infrastructure -f langfuse/docker-compose.yml
   DATABASE_COMPOSE: docker compose --env-file .env.infrastructure -f database/docker-compose.yml
-  BACKEND_COMPOSE: docker compose --env-file ../.env.backend -f backend/docker-compose.yml
+  BACKEND_COMPOSE: docker compose --env-file ../backend/.env.backend -f backend/docker-compose.yml
 
 tasks:
   dev:backend:
