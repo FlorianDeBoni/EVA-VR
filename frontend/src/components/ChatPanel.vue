@@ -47,14 +47,13 @@ watch(
 
 onMounted(welcome);
 
-// Keep the latest message in view.
-watch(
-  () => [props.conversation.messages.length, pendingText.value, errors.value.length],
-  async () => {
-    await nextTick();
-    messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
-  },
-);
+// Keep the latest message in view (again when its images finish loading and make it taller).
+async function scrollDown() {
+  await nextTick();
+  messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
+}
+
+watch(() => [props.conversation.messages.length, pendingText.value, errors.value.length], scrollDown);
 
 async function send() {
   const text = input.value.trim();
@@ -120,6 +119,17 @@ async function toggleRecording() {
       </p>
       <div v-for="(message, i) in conversation.messages" :key="i" class="message" :class="message.role">
         {{ message.content }}
+        <div v-if="message.images?.length" class="images">
+          <template v-for="image in message.images" :key="`${image.kind}${image.id}`">
+            <img
+              v-if="conversation.isCurrent(image)"
+              :class="image.kind"
+              :src="conversation.imageUrl(image)"
+              :alt="image.kind === 'references' ? `Reference ${image.id}` : `Concept version ${image.id}`"
+              @load="scrollDown"
+            />
+          </template>
+        </div>
       </div>
       <div v-if="starting" class="message assistant pending">…</div>
       <template v-if="pendingText !== null">

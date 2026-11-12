@@ -1,0 +1,22 @@
+from enum import IntEnum
+
+from backend.src.graph.state import GraphState
+
+
+class Step(IntEnum):
+    """The steps of the design workshop, in order. The value is the step number."""
+
+    GATHER_INFORMATION = 1
+    CONCEPT_DESIGN = 2
+
+
+def current_step(state: GraphState) -> Step:
+    """The step the session is in, derived from what the user has validated so far.
+
+    Derived, never stored, so it cannot drift from the validation flags. It moves forward
+    as soon as the previous step is validated, in the very turn that validates it. The last
+    step stays current once validated, until a next step exists.
+    """
+    if state["information"].is_validated:
+        return Step.CONCEPT_DESIGN
+    return Step.GATHER_INFORMATION

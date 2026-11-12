@@ -36,7 +36,12 @@ export function createApi(baseUrl, fetchImpl = (...args) => fetch(...args)) {
       }
     },
 
-    /** POST /chat -> { session_id, reply, information } */
+    /** URL of a concept image, for <img>: kind is "references", "images" or "validated". */
+    conceptImageUrl(sessionId, kind, id) {
+      return url(`/concept/${sessionId}/${kind}${id === undefined ? "" : `/${id}`}`);
+    },
+
+    /** POST /chat -> { session_id, step, reply, information, concept } */
     chat(sessionId, messages) {
       return call("/chat", {
         method: "POST",

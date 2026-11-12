@@ -64,9 +64,24 @@ class InformationResponse(BaseModel):
     is_validated: bool
 
 
+class ConceptResponse(BaseModel):
+    """Progress of the concept design step. The images are served by the /concept routes."""
+
+    reference_count: int = Field(description="Reference images found: GET .../references/{1..n}")
+    latest_version: int | None = Field(description="Latest generated image: GET .../images/{n}")
+    is_validated: bool = Field(description="True once the user accepted a concept image")
+    references_revision: int | None = Field(
+        description="Changes when the references are replaced: use it to refresh their images"
+    )
+
+
 class ChatResponse(BaseModel):
     """The assistant's reply, with the session to reuse on the next turn."""
 
     session_id: UUID
+    step: int = Field(
+        ge=1, description="Number of the workshop step the session is in after this turn"
+    )
     reply: str
     information: InformationResponse
+    concept: ConceptResponse

@@ -1,20 +1,28 @@
 <script setup>
-import { reactive } from "vue";
+import { computed, reactive, ref } from "vue";
 
 import ChatPanel from "./components/ChatPanel.vue";
+import ConceptPanel from "./components/ConceptPanel.vue";
 import HealthButton from "./components/HealthButton.vue";
 import InformationPanel from "./components/InformationPanel.vue";
-import { Conversation } from "./conversation.js";
+import { Conversation, STEPS } from "./conversation.js";
 import { api } from "./services.js";
 
 // The conversation (session id, history, gathered information) lives here, in the browser.
 const conversation = reactive(new Conversation(api));
+
+// The side panel is a tab: closed by default, so the chat takes the whole width.
+const panelOpen = ref(false);
+const panelLabel = computed(() => (conversation.step === 2 ? "Concept" : "Information"));
 </script>
 
 <template>
   <div class="app">
     <header>
       <h1>EVA-VR</h1>
+      <span v-if="conversation.step" class="step" title="Current step of the workshop">
+        Step {{ conversation.step }}/{{ STEPS.length }} · {{ STEPS[conversation.step - 1] }}
+      </span>
       <span class="session" title="Session id of this conversation">{{ conversation.sessionId }}</span>
       <HealthButton />
       <button type="button" @click="conversation.reset()">New conversation</button>
@@ -22,7 +30,19 @@ const conversation = reactive(new Conversation(api));
 
     <main>
       <ChatPanel :conversation="conversation" />
-      <InformationPanel :information="conversation.information" />
+      <template v-if="panelOpen">
+        <ConceptPanel v-if="conversation.step === 2" :conversation="conversation" />
+        <InformationPanel v-else :information="conversation.information" />
+      </template>
+      <button
+        type="button"
+        class="panel-tab"
+        :class="{ open: panelOpen }"
+        :aria-expanded="panelOpen"
+        @click="panelOpen = !panelOpen"
+      >
+        {{ panelLabel }} {{ panelOpen ? "›" : "‹" }}
+      </button>
     </main>
   </div>
 </template>

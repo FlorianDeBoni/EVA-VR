@@ -4,6 +4,7 @@ from uuid import UUID
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
 
+from backend.src.graph.tools.concept_design.schemas import ConceptDesign
 from backend.src.graph.tools.gather_information.schemas import InformationToGather
 
 
@@ -15,3 +16,5 @@ class GraphState(TypedDict):
     session_id: UUID
     # What is known so far; kept in sync with the database by the tools.
     information: InformationToGather
+    # Progress of the concept design step; kept in sync with the database by its tools.
+    concept_design: ConceptDesign

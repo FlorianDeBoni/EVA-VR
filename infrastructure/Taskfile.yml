@@ -24,18 +24,39 @@ tasks:
     cmds:
       - "{{.LANGFUSE_COMPOSE}} up -d"
   dev:database:
-    desc: Start the application Postgres database (detached, port APP_DB_PORT)
+    desc: Start the application Postgres database (detached, port APP_DB_PORT) and wait until it is ready
     cmds:
-      - "{{.DATABASE_COMPOSE}} up -d"
+      - "{{.DATABASE_COMPOSE}} up -d --wait"
+  wait:langfuse:
+    desc: Wait until the Langfuse web service answers (up to 3 minutes)
+    cmds:
+      - |
+        url=$(grep -E '^LANGFUSE_URL=' .env.infrastructure | cut -d= -f2-)
+        url=${url:-http://localhost:3000}
+        for _ in $(seq 1 90); do
+          curl -fsS "$url/api/public/health" >/dev/null 2>&1 && exit 0
+          sleep 2
+        done
+        echo "Langfuse did not become ready at $url" >&2
+        exit 1
+  stop:frontend:
+    desc: Stop the frontend dev server of this project, if one is running (frees FRONTEND_PORT)
+    cmds:
+      # The frontend runs locally (npm), not in Docker. Matches only this project's own vite
+      # (its command line holds the full path), so no unrelated process can be killed.
+      # pkill exits 1 when nothing matched: that is fine.
+      - pkill -f "{{.ROOT_DIR}}/frontend/node_modules/.bin/vite" || true
   docker:stop:
-    desc: Stop the Docker services (backend, Langfuse, database) without removing them
+    desc: Stop all the services (frontend dev server, backend, Langfuse, database) without removing them
     cmds:
+      - task: stop:frontend
       - "{{.BACKEND_COMPOSE}} stop"
       - "{{.LANGFUSE_COMPOSE}} stop"
       - "{{.DATABASE_COMPOSE}} stop"
   docker:delete:
-    desc: Stop and delete the Docker services, including their volumes (Langfuse and database data is lost)
+    desc: Stop everything and delete the Docker services with their volumes (data is lost); frees all the ports
     cmds:
+      - task: stop:frontend
       - "{{.BACKEND_COMPOSE}} down --volumes"
       - "{{.LANGFUSE_COMPOSE}} down --volumes"
       - "{{.DATABASE_COMPOSE}} down --volumes"

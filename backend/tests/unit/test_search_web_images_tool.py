@@ -1,41 +1,99 @@
+import base64
+from uuid import uuid4
+
+import pytest
+
+from backend.src.graph.tools.concept_design.schemas import ConceptDesign
 from backend.src.graph.tools.search_web_images import tool as tool_module
-from backend.src.graph.tools.search_web_images.schemas import ImageHit, RankedImage
+from backend.src.graph.tools.search_web_images.schemas import (
+    DownloadedImage,
+    ImageHit,
+    RankedImage,
+)
 from backend.src.graph.tools.search_web_images.tool import search_web_images
+
+NOTHING = ConceptDesign(reference_count=0, latest_version=None, is_validated=False)
 
 
 def _ranked(n):
-    hit = ImageHit(f"t{n}", f"https://img/{n}.jpg", "th", "https://p", 800, 600, "building", 1.0)
-    return RankedImage(hit=hit, score=1 - n / 10, reason=f"r{n}")
+    hit = ImageHit(
+        f"title{n}", f"http://img/{n}", "", f"http://page/{n}", 900, 900, "interior", 1.0
+    )
+    return RankedImage(hit=hit, score=1 - n / 10, reason=f"reason{n}")
 
 
-def test_tool_schema_exposes_query_and_criteria():
-    props = search_web_images.args_schema.model_json_schema()["properties"]
+class FakeFinder:
+    def __init__(self, count=3):
+        self.count = count
+        self.seen = None
+
+    def download(self, query, criteria, count):
+        self.seen = (query, criteria, count)
+        return [
+            DownloadedImage(_ranked(n), f"file{n}".encode(), "image/jpeg")
+            for n in range(1, self.count + 1)
+        ]
+
+
+class FakeConceptService:
+    def __init__(self):
+        self.stored = None
+
+    def replace_reference_images(self, session_id, images):
+        self.stored = (session_id, images)
+
+    def get_concept_design(self, session_id):
+        return ConceptDesign(len(self.stored[1]), None, False, references_revision=42)
+
+
+@pytest.fixture
+def finder(monkeypatch):
+    fake = FakeFinder()
+    monkeypatch.setattr(tool_module, "get_web_image_finder_service", lambda: fake)
+    return fake
+
+
+@pytest.fixture
+def service(monkeypatch):
+    fake = FakeConceptService()
+    monkeypatch.setattr(tool_module, "get_concept_design_service", lambda: fake)
+    return fake
+
+
+def _state():
+    return {"session_id": uuid4(), "concept_design": NOTHING}
+
+
+def test_tool_schema_exposes_only_query_and_criteria_to_the_model():
+    props = search_web_images.tool_call_schema.model_json_schema()["properties"]
     assert set(props) == {"query", "criteria"}
 
 
-def test_tool_searches_ranks_and_returns_top(monkeypatch):
-    seen = {}
+def test_tool_ranks_downloads_and_stores_three_references_as_base64(finder, service):
+    state = _state()
 
-    class FakeService:
-        def search(self, keywords):
-            seen["keywords"] = keywords
-            return ["c1", "c2"]
+    command = search_web_images.func(
+        state=state, tool_call_id="c1", query="creative studio", criteria="interior"
+    )
 
-    class FakeRanker:
-        def rank(self, query, criteria, candidates):
-            seen.update(query=query, criteria=criteria, candidates=candidates)
-            return [_ranked(0), _ranked(1)]
+    assert finder.seen == ("creative studio", "interior", 3)
+    session_id, images = service.stored
+    assert session_id == state["session_id"]
+    assert [i.position for i in images] == [1, 2, 3]
+    assert [i.source_url for i in images] == [f"http://img/{n}" for n in (1, 2, 3)]
+    assert images[0].page_url == "http://page/1" and images[0].mime_type == "image/jpeg"
+    assert base64.b64decode(images[0].image_b64) == b"file1"
+    assert command.update["concept_design"] == ConceptDesign(3, None, False, 42)
+    message = command.update["messages"][0]
+    assert message.tool_call_id == "c1"
+    assert "Reference 1: title1 (score 0.90, reason1)" in message.content
 
-    monkeypatch.setattr(tool_module, "get_image_search_service", lambda: FakeService())
-    monkeypatch.setattr(tool_module, "get_image_ranker_service", lambda: FakeRanker())
 
-    out = search_web_images.invoke({"query": "modern museum", "criteria": "interior"})
+def test_tool_reports_when_nothing_is_usable(finder, service):
+    finder.count = 0
 
-    assert seen == {
-        "keywords": ["modern", "museum"],
-        "query": "modern museum",
-        "criteria": "interior",
-        "candidates": ["c1", "c2"],
-    }
-    assert [r["image_url"] for r in out] == ["https://img/0.jpg", "https://img/1.jpg"]
-    assert out[0]["reason"] == "r0"
+    command = search_web_images.func(state=_state(), tool_call_id="c1", query="x")
+
+    assert service.stored is None
+    assert "concept_design" not in command.update
+    assert "different keywords" in command.update["messages"][0].content

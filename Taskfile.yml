@@ -3,7 +3,7 @@ version: "3"
 dotenv: ["backend/.env.backend"]
 
 # Docker tasks (dev:backend, dev:langfuse, docker:stop, docker:delete) live in infrastructure/.
-# The frontend runs locally with npm (see frontend/).
+# The frontend runs locally with npm (see frontend/); docker:stop and docker:delete stop it too.
 includes:
   infrastructure:
     taskfile: infrastructure/Taskfile.yml
@@ -11,6 +11,21 @@ includes:
     flatten: true
 
 tasks:
+  start:
+    desc: Start everything - Langfuse, database, seed the prompts, backend, then the frontend (Ctrl+C stops the frontend only)
+    cmds:
+      - task: stop:frontend # a frontend left from a previous run would hold its port
+      - task: dev:langfuse
+      - task: dev:database
+      - task: wait:langfuse
+      - task: seed:prompts
+      - task: dev:backend
+      - task: dev:frontend
+  restart:
+    desc: Stop everything (data kept), then start it all again. Prompts are re-seeded.
+    cmds:
+      - task: docker:stop
+      - task: start
   dev:frontend:
     desc: Install dependencies and start the frontend dev server (Ctrl+C to stop)
     dir: frontend

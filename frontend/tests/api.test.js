@@ -72,3 +72,11 @@ test("transcribe uploads the audio as multipart and returns the text", async () 
   assert.ok(init.body instanceof FormData);
   assert.equal(init.body.get("file").name, "recording.webm");
 });
+
+test("conceptImageUrl builds the URL of each kind of concept image", () => {
+  const api = createApi("http://api.test/");
+
+  assert.equal(api.conceptImageUrl("s1", "references", 2), "http://api.test/concept/s1/references/2");
+  assert.equal(api.conceptImageUrl("s1", "images", 3), "http://api.test/concept/s1/images/3");
+  assert.equal(api.conceptImageUrl("s1", "validated"), "http://api.test/concept/s1/validated");
+});

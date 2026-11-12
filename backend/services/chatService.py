@@ -4,6 +4,7 @@ from uuid import UUID
 from langchain_core.messages import AnyMessage
 from langgraph.graph.state import CompiledStateGraph
 
+from backend.services.conceptDesignService import ConceptDesignService, get_concept_design_service
 from backend.services.databaseService import DatabaseService, get_database_service
 from backend.src.graph.graph import get_main_graph
 from backend.src.graph.state import GraphState
@@ -26,9 +27,11 @@ class ChatService:
         self,
         graph: CompiledStateGraph | None = None,
         database_service: DatabaseService | None = None,
+        concept_service: ConceptDesignService | None = None,
     ) -> None:
         self._graph = graph
         self._database_service = database_service
+        self._concept_service = concept_service
         self.logger = LogManager.get_logger(__name__)
 
     @property
@@ -42,6 +45,12 @@ class ChatService:
         if self._database_service is None:
             self._database_service = get_database_service()
         return self._database_service
+
+    @property
+    def concept_service(self) -> ConceptDesignService:
+        if self._concept_service is None:
+            self._concept_service = get_concept_design_service()
+        return self._concept_service
 
     def run(self, state: GraphState) -> GraphState:
         """Pass `state` to the main graph and return the resulting state."""
@@ -68,7 +77,7 @@ class ChatService:
 
         Returns:
             The final state: its last message is the assistant's reply and its
-            `information` is up to date with the database.
+            `information` and `concept_design` are up to date with the database.
 
         Raises:
             SessionNotFoundError: If no session has this id.
@@ -77,6 +86,7 @@ class ChatService:
             "messages": messages,
             "session_id": session_id,
             "information": self.database_service.get_information(session_id),
+            "concept_design": self.concept_service.get_concept_design(session_id),
         }
         self.logger.info("Chat turn for session %s (%d messages)", session_id, len(messages))
         return self.run(state)

@@ -1,8 +1,9 @@
 from fastapi import APIRouter
 
-from backend.api.routes import chat, healthchecks, speech
+from backend.api.routes import chat, concept, healthchecks, speech
 
 api_router = APIRouter()
 api_router.include_router(healthchecks.router)
 api_router.include_router(chat.router)
 api_router.include_router(speech.router)
+api_router.include_router(concept.router)

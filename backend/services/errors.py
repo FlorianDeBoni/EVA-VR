@@ -8,3 +8,7 @@ class SpeechToTextError(ValueError):
 
 class PromptNotFoundError(LookupError):
     """Langfuse has no prompt with this name under the configured label."""
+
+
+class ConceptImageNotFoundError(LookupError):
+    """The session has no concept image with this version."""

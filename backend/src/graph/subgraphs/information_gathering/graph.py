@@ -82,14 +82,23 @@ class InformationGatheringGraph:
         response = self.llm.invoke([SystemMessage(content=system), *state["messages"]])
         return {"messages": [response]}
 
+    @staticmethod
+    def after_tools(state: GraphState) -> str:
+        """Back to the agent, unless the information was just validated: the step is over."""
+        return END if state["information"].is_validated else "agent"
+
     def compile(self, checkpointer=None) -> CompiledStateGraph:
-        """Build the graph: agent <-> tools, ending when the agent stops calling tools."""
+        """Build the graph: agent <-> tools.
+
+        It ends when the agent stops calling tools, or right after `validate_information`
+        succeeds: the main graph then moves on to the next step, which speaks next.
+        """
         builder = StateGraph(GraphState)
         builder.add_node("agent", self.agent_node)
         builder.add_node("tools", ToolNode([update_information, validate_information]))
         builder.add_edge(START, "agent")
         builder.add_conditional_edges("agent", tools_condition, {"tools": "tools", END: END})
-        builder.add_edge("tools", "agent")
+        builder.add_conditional_edges("tools", self.after_tools, {"agent": "agent", END: END})
         return builder.compile(checkpointer=checkpointer)
 
     @property

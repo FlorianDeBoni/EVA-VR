@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Annotated
 
+from langchain_core.tools import InjectedToolCallId
+from langgraph.prebuilt import InjectedState
 from pydantic import BaseModel, Field
 
 
@@ -56,3 +59,15 @@ class SearchWebImagesInput(BaseModel):
     criteria: str = Field(
         default="", description="What a good image looks like, e.g. 'interior view, no people'"
     )
+    # Injected by the graph, hidden from the model.
+    state: Annotated[dict, InjectedState]
+    tool_call_id: Annotated[str, InjectedToolCallId]
+
+
+@dataclass(frozen=True)
+class DownloadedImage:
+    """A ranked image whose file was downloaded and normalized (JPEG bytes)."""
+
+    ranked: RankedImage
+    data: bytes
+    mime_type: str

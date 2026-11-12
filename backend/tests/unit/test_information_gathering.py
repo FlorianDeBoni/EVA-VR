@@ -147,17 +147,25 @@ def test_agent_records_information_then_asks_the_next_question(database):
     assert "architects" in system.content
 
 
-def test_agent_validates_after_confirmation(database):
-    llm = FakeLLM(
-        _call("validate_information"),
-        AIMessage(content="Thanks, let's start designing!"),
-    )
+def test_agent_stops_right_after_the_validation(database):
+    # The next step speaks next: the agent must not be called again after the validation.
+    llm = FakeLLM(_call("validate_information"))
 
     result, _ = _run(llm, COMPLETE, "Yes, that's right")
 
     assert result["information"].is_validated is True
     assert database.updates[-1][1].is_validated is True
-    assert result["messages"][-1].content == "Thanks, let's start designing!"
+    assert isinstance(result["messages"][-1], ToolMessage)
+    assert len(llm.calls) == 1
+
+
+def test_agent_keeps_talking_when_the_validation_is_refused(database):
+    llm = FakeLLM(_call("validate_information"), AIMessage(content="What is your goal?"))
+
+    result, _ = _run(llm, replace(COMPLETE, goal=""), "Yes")
+
+    assert result["information"].is_validated is False
+    assert result["messages"][-1].content == "What is your goal?"
 
 
 def test_agent_ends_the_turn_without_tool_calls(database):

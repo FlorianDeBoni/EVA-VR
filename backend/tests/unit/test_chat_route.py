@@ -1,3 +1,4 @@
+from dataclasses import replace
 from uuid import uuid4
 
 import pytest
@@ -9,8 +10,12 @@ from backend.api.main import app
 from backend.api.routes import chat as route
 from backend.services.chatService import ChatService
 from backend.services.errors import PromptNotFoundError
+from backend.src.graph.tools.concept_design.schemas import ConceptDesign
 from backend.src.graph.tools.gather_information.schemas import InformationToGather
 
+CONCEPT = ConceptDesign(
+    reference_count=3, latest_version=2, is_validated=False, references_revision=123
+)
 INFO = InformationToGather(
     user_type="architects",
     number_of_users=5,
@@ -24,7 +29,8 @@ INFO = InformationToGather(
 class FakeChatService:
     """Records the calls of the route; `session_id` is what ensure_session returns."""
 
-    def __init__(self, session_id=None, error=None):
+    def __init__(self, session_id=None, error=None, information=INFO):
+        self.information = information
         self.session_id = session_id or uuid4()
         self.error = error
         self.ensured = None
@@ -41,7 +47,8 @@ class FakeChatService:
         return {
             "messages": [*messages, AIMessage(content="Who will use the room?")],
             "session_id": session_id,
-            "information": INFO,
+            "information": self.information,
+            "concept_design": CONCEPT,
         }
 
 
@@ -78,6 +85,13 @@ def test_chat_runs_the_agent_and_returns_reply_session_and_information(monkeypat
         "goal": None,
         "must_have_features": ["whiteboard"],
         "is_validated": False,
+    }
+    assert body["step"] == 1
+    assert body["concept"] == {
+        "reference_count": 3,
+        "latest_version": 2,
+        "is_validated": False,
+        "references_revision": 123,
     }
     assert str(service.ensured) == known
     session_id, messages = service.chatted
@@ -177,3 +191,12 @@ def test_ensure_session_without_id_creates_a_new_one():
     created = ChatService(database_service=db).ensure_session(None)
 
     assert db.created == [created]
+
+
+def test_chat_answers_with_the_step_the_session_is_in(monkeypatch):
+    validated = replace(INFO, is_validated=True)
+    service = FakeChatService(information=validated)
+
+    response = _post(monkeypatch, service, {"messages": []})
+
+    assert response.json()["step"] == 2
