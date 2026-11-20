@@ -4,6 +4,13 @@
 # Set CADDY_NETWORK to the Docker network Caddy is attached to.
 name: eva-vr
 
+# Rotate container logs: at most 3 files of 50 MB per container.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
 services:
   backend:
     container_name: eva-vr-backend
@@ -15,6 +22,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    logging: *default-logging
     networks: [caddy]
 
   frontend:
@@ -25,6 +33,7 @@ services:
         VITE_BASE_PATH: /eva-vr/
         VITE_API_URL: /eva-vr/api
     restart: unless-stopped
+    logging: *default-logging
     networks: [caddy]
 
 networks:
