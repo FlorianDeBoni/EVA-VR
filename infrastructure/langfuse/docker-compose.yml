@@ -36,6 +36,7 @@ x-langfuse-env: &langfuse-env
 
 services:
   langfuse-worker:
+    restart: unless-stopped
     image: langfuse/langfuse-worker:3
     depends_on: &deps
       postgres: {condition: service_healthy}
@@ -45,6 +46,7 @@ services:
     environment: *langfuse-env
 
   langfuse-web:
+    restart: unless-stopped
     image: langfuse/langfuse:3
     depends_on: *deps
     ports:
@@ -52,6 +54,7 @@ services:
     environment: *langfuse-env
 
   clickhouse:
+    restart: unless-stopped
     image: clickhouse/clickhouse-server
     user: "101:101"
     environment:
@@ -68,6 +71,7 @@ services:
       retries: 10
 
   minio:
+    restart: unless-stopped
     # minio/minio is no longer published on Docker Hub; same image as the official Langfuse compose.
     image: cgr.dev/chainguard/minio
     entrypoint: sh
@@ -85,6 +89,7 @@ services:
       start_period: 1s
 
   redis:
+    restart: unless-stopped
     image: redis:7
     command: --requirepass ${REDIS_AUTH:?}
     healthcheck:
@@ -94,6 +99,7 @@ services:
       retries: 10
 
   postgres:
+    restart: unless-stopped
     image: postgres:17
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?}
