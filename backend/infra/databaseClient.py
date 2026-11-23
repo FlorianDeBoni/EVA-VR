@@ -1,3 +1,4 @@
+import threading
 from collections.abc import Generator
 from contextlib import contextmanager
 
@@ -25,6 +26,7 @@ class DatabaseClient:
         self._conninfo = conninfo
         self._pool_options = pool_options
         self._pool: ConnectionPool | None = None
+        self._lock = threading.Lock()
         self.logger = LogManager.get_logger(__name__)
 
     @classmethod
@@ -42,17 +44,33 @@ class DatabaseClient:
     @property
     def pool(self) -> ConnectionPool:
         """Return the (lazily created and opened, cached) pool."""
-        if self._pool is None:
-            self.logger.info("Opening database connection pool")
-            pool = ConnectionPool(
-                self._conninfo,
-                open=False,
-                kwargs={"row_factory": dict_row},
-                **self._pool_options,
-            )
-            pool.open(wait=True)
-            self._pool = pool
-        return self._pool
+        with self._lock:
+            if self._pool is None:
+                self._pool = self._open_pool()
+            return self._pool
+
+    def _open_pool(self) -> ConnectionPool:
+        self.logger.info("Opening database connection pool")
+        options = {
+            # Drop dead/stale connections (DB restart, idle timeouts) before handing them out.
+            "check": ConnectionPool.check_connection,
+            "max_lifetime": 1800,
+            "reconnect_timeout": 30,
+            **self._pool_options,
+        }
+        pool = ConnectionPool(
+            self._conninfo,
+            open=False,
+            kwargs={"row_factory": dict_row},
+            **options,
+        )
+        try:
+            pool.open(wait=True, timeout=10)
+        except Exception:
+            # Never leak a half-open pool: its workers would retry forever.
+            pool.close()
+            raise
+        return pool
 
     @contextmanager
     def connection(self) -> Generator[psycopg.Connection]:
